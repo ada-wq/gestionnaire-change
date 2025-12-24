@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestionnaire de Change Euro/CFA</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        .soldes {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            padding: 30px;
+            background: #f8f9fa;
+        }
+        .solde-card {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .solde-card h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+        .solde-amount {
+            font-size: 2em;
+            font-weight: bold;
+            color: #2d3748;
+        }
+        .form-section {
+            padding: 30px;
+        }
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        label {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #2d3748;
+        }
+        input, select, textarea {
+            padding: 10px;
+            border: 2px solid #e2e8f0;
+            border-radius: 5px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+        .table-container {
+            padding: 30px;
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        tr:hover {
+            background: #f7fafc;
+        }
+        .entree {
+            color: #38a169;
+            font-weight: 600;
+        }
+        .sortie {
+            color: #e53e3e;
+            font-weight: 600;
+        }
+        .delete-btn {
+            background: #e53e3e;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            margin-left: 5px;
+        }
+        .delete-btn:hover {
+            background: #c53030;
+        }
+        .edit-btn {
+            background: #3182ce;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .edit-btn:hover {
+            background: #2c5282;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal.active {
+            display: flex;
+        }
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .modal-header h2 {
+            color: #667eea;
+        }
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5em;
+            cursor: pointer;
+            color: #718096;
+        }
+        .close-btn:hover {
+            color: #2d3748;
+        }
+        .btn-secondary {
+            background: #718096;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1.1em;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+        .btn-secondary:hover {
+            background: #4a5568;
+        }
+        .tabs {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .tab {
+            padding: 15px 30px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-size: 1.1em;
+            transition: all 0.3s;
+        }
+        .tab.active {
+            background: white;
+            border-bottom: 3px solid #667eea;
+            font-weight: 600;
+            color: #667eea;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💱 Gestionnaire de Change</h1>
+            <p>Suivi des transactions Euro ⇄ CFA</p>
+        </div>
+
+        <div class="soldes">
+            <div class="solde-card">
+                <h3>💶 Solde Euro</h3>
+                <div class="solde-amount" id="soldeEuro">0 €</div>
+            </div>
+            <div class="solde-card">
+                <h3>💰 Solde CFA</h3>
+                <div class="solde-amount" id="soldeCFA">0 CFA</div>
+            </div>
+            <div class="solde-card">
+                <h3>📊 Transactions Totales</h3>
+                <div class="solde-amount" id="totalTransactions">0</div>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('euro')">Transactions Euro</button>
+            <button class="tab" onclick="switchTab('cfa')">Transactions CFA</button>
+        </div>
+
+        <div id="euroTab" class="tab-content active">
+            <div class="form-section">
+                <h2>Nouvelle Transaction Euro</h2>
+                <form id="euroForm">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Date</label>
+                            <input type="date" id="euroDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Type d'opération</label>
+                            <select id="euroOperation" required>
+                                <option value="Entrée">Entrée</option>
+                                <option value="Sortie">Sortie</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Entrée (€)</label>
+                            <input type="number" id="euroEntree" step="0.01" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Sortie (€)</label>
+                            <input type="number" id="euroSortie" step="0.01" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Personne</label>
+                            <input type="text" id="euroPersonne" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Taux de change</label>
+                            <input type="number" id="euroTaux" step="0.01" placeholder="Optionnel">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Remarque</label>
+                        <textarea id="euroRemarque"></textarea>
+                    </div>
+                    <button type="submit" class="btn">Ajouter Transaction</button>
+                </form>
+            </div>
+
+            <div class="table-container">
+                <h2>Historique des Transactions Euro</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Opération</th>
+                            <th>Entrée</th>
+                            <th>Sortie</th>
+                            <th>Solde</th>
+                            <th>Personne</th>
+                            <th>Remarque</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="euroTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="cfaTab" class="tab-content">
+            <div class="form-section">
+                <h2>Nouvelle Transaction CFA</h2>
+                <form id="cfaForm">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Date</label>
+                            <input type="date" id="cfaDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Type d'opération</label>
+                            <select id="cfaOperation" required>
+                                <option value="Entrée">Entrée</option>
+                                <option value="Sortie">Sortie</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Entrée (CFA)</label>
+                            <input type="number" id="cfaEntree" step="1" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Sortie (CFA)</label>
+                            <input type="number" id="cfaSortie" step="1" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Personne</label>
+                            <input type="text" id="cfaPersonne" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Taux de change</label>
+                            <input type="number" id="cfaTaux" step="0.01" placeholder="Optionnel">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Remarque</label>
+                        <textarea id="cfaRemarque"></textarea>
+                    </div>
+                    <button type="submit" class="btn">Ajouter Transaction</button>
+                </form>
+            </div>
+
+            <div class="table-container">
+                <h2>Historique des Transactions CFA</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Opération</th>
+                            <th>Entrée</th>
+                            <th>Sortie</th>
+                            <th>Solde</th>
+                            <th>Personne</th>
+                            <th>Remarque</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cfaTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Modifier la Transaction</h2>
+                <button class="close-btn" onclick="closeEditModal()">&times;</button>
+            </div>
+            <form id="editForm">
+                <input type="hidden" id="editType">
+                <input type="hidden" id="editIndex">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Date</label>
+                        <input type="date" id="editDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Type d'opération</label>
+                        <select id="editOperation" required>
+                            <option value="Entrée">Entrée</option>
+                            <option value="Sortie">Sortie</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Entrée</label>
+                        <input type="number" id="editEntree" step="0.01" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Sortie</label>
+                        <input type="number" id="editSortie" step="0.01" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Personne</label>
+                        <input type="text" id="editPersonne" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Taux de change</label>
+                        <input type="number" id="editTaux" step="0.01" placeholder="Optionnel">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Remarque</label>
+                    <textarea id="editRemarque"></textarea>
+                </div>
+                <div>
+                    <button type="submit" class="btn">Enregistrer</button>
+                    <button type="button" class="btn-secondary" onclick="closeEditModal()">Annuler</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let euroTransactions = [];
+        let cfaTransactions = [];
+
+        function loadHistoricalData() {
+            const euroHistorical = [
+                {date: '2024-01-01', operation: 'Sortie', entree: 0, sortie: 0, personne: 'Youssouf / Abakar', remarque: ''},
+                {date: '2024-01-02', operation: 'Entrée', entree: 3000, sortie: 0, personne: 'Issa', remarque: ''},
+                {date: '2024-01-03', operation: 'Sortie', entree: 0, sortie: 23, personne: 'Issa', remarque: 'Différence taux 670 et 675'},
+                {date: '2024-01-04', operation: 'Sortie', entree: 0, sortie: 1482, personne: 'Ibni', remarque: ''},
+                {date: '2024-01-05', operation: 'Sortie', entree: 0, sortie: 72, personne: 'Ibni', remarque: ''},
+                {date: '2024-01-06', operation: 'Entrée', entree: 148, sortie: 0, personne: 'Issa', remarque: ''},
+                {date: '2024-01-07', operation: 'Entrée', entree: 1874, sortie: 0, personne: 'Issa', remarque: ''},
+                {date: '2024-01-08', operation: 'Entrée', entree: 74, sortie: 0, personne: 'Issa', remarque: 'Médicament'},
+                {date: '2024-01-09', operation: 'Sortie', entree: 0, sortie: 512, personne: 'Berdei', remarque: 'Médicament'},
+                {date: '2024-01-10', operation: 'Sortie', entree: 0, sortie: 701, personne: 'Soulou', remarque: 'Médicament'},
+                {date: '2024-01-11', operation: 'Sortie', entree: 0, sortie: 47, personne: 'Youssouf', remarque: 'Part Youssouf pharma, Bénéfice médicament 512'},
+                {date: '2024-01-12', operation: 'Entrée', entree: 224, sortie: 0, personne: 'Moi', remarque: '100000/3 = 33 333,333'},
+                {date: '2024-01-13', operation: 'Entrée', entree: 74, sortie: 0, personne: 'Issa', remarque: '33333/700 = 47,619'},
+                {date: '2024-01-14', operation: 'Entrée', entree: 3000, sortie: 0, personne: 'Faris', remarque: 'SOLDE FINAL'},
+                {date: '2024-01-15', operation: 'Sortie', entree: 0, sortie: 2421.4, personne: 'Youssouf pharmacie', remarque: 'Valise commande - Total Medica 2090 + Topicrem 112,5 + Getzner 205 + Valise 13,90 = 2421,4'},
+                {date: '2024-01-16', operation: 'Entrée', entree: 100, sortie: 0, personne: 'Issa', remarque: ''},
+                {date: '2024-01-17', operation: 'Sortie', entree: 0, sortie: 2200, personne: 'Retrait', remarque: 'Retrait espèce'},
+                {date: '2024-01-18', operation: 'Entrée', entree: 3315, sortie: 0, personne: 'Issa', remarque: '4000$ Issa'},
+                {date: '2024-01-19', operation: 'Sortie', entree: 0, sortie: 1000, personne: 'Youssouf', remarque: 'Youssouf'},
+                {date: '2024-01-20', operation: 'Entrée', entree: 3000, sortie: 0, personne: 'Issa', remarque: ''},
+                {date: '2024-01-21', operation: 'Entrée', entree: 794, sortie: 0, personne: 'Ms Ibni', remarque: ''},
+                {date: '2024-01-22', operation: 'Entrée', entree: 300, sortie: 0, personne: 'Ms ibni', remarque: ''},
+                {date: '2024-01-23', operation: 'Entrée', entree: 100, sortie: 0, personne: 'Issa', remarque: ''},
+                {date: '2024-01-24', operation: 'Sortie', entree: 0, sortie: 70, personne: 'Issa', remarque: 'Bénéfice Issa sur 4000$ et 3000€'}
+            ];
+
+            const cfaHistorical = [
+                {date: '2024-01-01', operation: 'Entrée', entree: 4865000, sortie: 0, personne: 'Capital initial', remarque: ''},
+                {date: '2024-01-02', operation: 'Sortie', entree: 0, sortie: 400000, personne: 'You', remarque: ''},
+                {date: '2024-01-03', operation: 'Sortie', entree: 0, sortie: 350000, personne: 'Abakar Doungous', remarque: ''},
+                {date: '2024-01-04', operation: 'Sortie', entree: 0, sortie: 2020000, personne: 'Issa', remarque: ''},
+                {date: '2024-01-05', operation: 'Sortie', entree: 0, sortie: 100000, personne: 'Moi', remarque: ''},
+                {date: '2024-01-06', operation: 'Entrée', entree: 1030000, sortie: 0, personne: 'Ibni Alhadj', remarque: ''},
+                {date: '2024-01-07', operation: 'Sortie', entree: 0, sortie: 10000, personne: 'Abbas', remarque: 'Retrait Abbas'},
+                {date: '2024-01-08', operation: 'Entrée', entree: 50000, sortie: 0, personne: 'Ibni', remarque: ''},
+                {date: '2024-01-09', operation: 'Sortie', entree: 0, sortie: 100000, personne: 'Issa', remarque: ''},
+                {date: '2024-01-10', operation: 'Sortie', entree: 0, sortie: 1265000, personne: 'Issa', remarque: ''},
+                {date: '2024-01-11', operation: 'Sortie', entree: 0, sortie: 50000, personne: 'Issa', remarque: ''},
+                {date: '2024-01-12', operation: 'Sortie', entree: 0, sortie: 10000, personne: 'Abbas', remarque: 'Retrait Abbas'},
+                {date: '2024-01-13', operation: 'Sortie', entree: 0, sortie: 50000, personne: 'Moi', remarque: ''},
+                {date: '2024-01-14', operation: 'Entrée', entree: 460000, sortie: 0, personne: 'Youssouf pharmacie', remarque: ''},
+                {date: '2024-01-15', operation: 'Sortie', entree: 0, sortie: 50000, personne: 'Issa', remarque: ''},
+                {date: '2024-01-16', operation: 'Sortie', entree: 0, sortie: 10000, personne: 'Abbas', remarque: 'Retrait Abbas'},
+                {date: '2024-01-17', operation: 'Sortie', entree: 0, sortie: 67500, personne: 'Issa', remarque: ''},
+                {date: '2024-01-18', operation: 'Sortie', entree: 0, sortie: 532000, personne: 'Ms Ibni', remarque: ''},
+                {date: '2024-01-19', operation: 'Sortie', entree: 0, sortie: 67000, personne: 'Issa', remarque: ''}
+            ];
+
+            euroTransactions = euroHistorical;
+            cfaTransactions = cfaHistorical;
+            
+            updateDisplay();
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            
+            if (tab === 'euro') {
+                document.querySelector('.tab:first-child').classList.add('active');
+                document.getElementById('euroTab').classList.add('active');
+            } else {
+                document.querySelector('.tab:last-child').classList.add('active');
+                document.getElementById('cfaTab').classList.add('active');
+            }
+        }
+
+        function calculateSolde(transactions) {
+            let solde = 0;
+            return transactions.map(t => {
+                solde += (t.entree - t.sortie);
+                return {...t, solde};
+            });
+        }
+
+        function updateDisplay() {
+            const euroWithSolde = calculateSolde(euroTransactions);
+            const cfaWithSolde = calculateSolde(cfaTransactions);
+
+            const euroSolde = euroWithSolde.length > 0 ? euroWithSolde[euroWithSolde.length - 1].solde : 0;
+            const cfaSolde = cfaWithSolde.length > 0 ? cfaWithSolde[cfaWithSolde.length - 1].solde : 0;
+
+            document.getElementById('soldeEuro').textContent = euroSolde.toFixed(2) + ' €';
+            document.getElementById('soldeCFA').textContent = cfaSolde.toLocaleString('fr-FR') + ' CFA';
+            document.getElementById('totalTransactions').textContent = euroTransactions.length + cfaTransactions.length;
+
+            displayTransactions('euro', euroWithSolde);
+            displayTransactions('cfa', cfaWithSolde);
+        }
+
+        function displayTransactions(type, transactions) {
+            const tbody = document.getElementById(type + 'TableBody');
+            tbody.innerHTML = '';
+
+            transactions.forEach((t, index) => {
+                const row = tbody.insertRow();
+                row.innerHTML = `
+                    <td>${t.date}</td>
+                    <td>${t.operation}</td>
+                    <td class="entree">${t.entree > 0 ? (type === 'euro' ? t.entree.toFixed(2) : t.entree.toLocaleString('fr-FR')) : '-'}</td>
+                    <td class="sortie">${t.sortie > 0 ? (type === 'euro' ? t.sortie.toFixed(2) : t.sortie.toLocaleString('fr-FR')) : '-'}</td>
+                    <td><strong>${type === 'euro' ? t.solde.toFixed(2) : t.solde.toLocaleString('fr-FR')}</strong></td>
+                    <td>${t.personne}</td>
+                    <td>${t.remarque || '-'}</td>
+                    <td>
+                        <button class="edit-btn" onclick="editTransaction('${type}', ${index})">Modifier</button>
+                        <button class="delete-btn" onclick="deleteTransaction('${type}', ${index})">Supprimer</button>
+                    </td>
+                `;
+            });
+        }
+
+        function editTransaction(type, index) {
+            const transaction = type === 'euro' ? euroTransactions[index] : cfaTransactions[index];
+            
+            document.getElementById('editType').value = type;
+            document.getElementById('editIndex').value = index;
+            document.getElementById('editDate').value = transaction.date;
+            document.getElementById('editOperation').value = transaction.operation;
+            document.getElementById('editEntree').value = transaction.entree || '';
+            document.getElementById('editSortie').value = transaction.sortie || '';
+            document.getElementById('editPersonne').value = transaction.personne;
+            document.getElementById('editTaux').value = transaction.taux || '';
+            document.getElementById('editRemarque').value = transaction.remarque || '';
+            
+            document.getElementById('editModal').classList.add('active');
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').classList.remove('active');
+            document.getElementById('editForm').reset();
+        }
+
+        document.getElementById('editForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const type = document.getElementById('editType').value;
+            const index = parseInt(document.getElementById('editIndex').value);
+            
+            const updatedTransaction = {
+                date: document.getElementById('editDate').value,
+                operation: document.getElementById('editOperation').value,
+                entree: parseFloat(document.getElementById('editEntree').value) || 0,
+                sortie: parseFloat(document.getElementById('editSortie').value) || 0,
+                personne: document.getElementById('editPersonne').value,
+                remarque: document.getElementById('editRemarque').value,
+                taux: parseFloat(document.getElementById('editTaux').value) || null
+            };
+
+            if (type === 'euro') {
+                euroTransactions[index] = updatedTransaction;
+            } else {
+                cfaTransactions[index] = updatedTransaction;
+            }
+
+            updateDisplay();
+            closeEditModal();
+        });
+
+        function deleteTransaction(type, index) {
+            if (confirm('Êtes-vous sûr de vouloir supprimer cette transaction ?')) {
+                if (type === 'euro') {
+                    euroTransactions.splice(index, 1);
+                } else {
+                    cfaTransactions.splice(index, 1);
+                }
+                updateDisplay();
+            }
+        }
+
+        document.getElementById('euroForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const transaction = {
+                date: document.getElementById('euroDate').value,
+                operation: document.getElementById('euroOperation').value,
+                entree: parseFloat(document.getElementById('euroEntree').value) || 0,
+                sortie: parseFloat(document.getElementById('euroSortie').value) || 0,
+                personne: document.getElementById('euroPersonne').value,
+                remarque: document.getElementById('euroRemarque').value,
+                taux: parseFloat(document.getElementById('euroTaux').value) || null
+            };
+
+            euroTransactions.push(transaction);
+            updateDisplay();
+            this.reset();
+        });
+
+        document.getElementById('cfaForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const transaction = {
+                date: document.getElementById('cfaDate').value,
+                operation: document.getElementById('cfaOperation').value,
+                entree: parseFloat(document.getElementById('cfaEntree').value) || 0,
+                sortie: parseFloat(document.getElementById('cfaSortie').value) || 0,
+                personne: document.getElementById('cfaPersonne').value,
+                remarque: document.getElementById('cfaRemarque').value,
+                taux: parseFloat(document.getElementById('cfaTaux').value) || null
+            };
+
+            cfaTransactions.push(transaction);
+            updateDisplay();
+            this.reset();
+        });
+
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('euroDate').value = today;
+        document.getElementById('cfaDate').value = today;
+
+        loadHistoricalData();
+    </script>
+</body>
+</html>
