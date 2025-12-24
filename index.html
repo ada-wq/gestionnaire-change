@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestionnaire de Change Euro/CFA</title>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-database.js"></script>
+    
     <style>
         * {
             margin: 0;
@@ -29,6 +34,7 @@
             color: white;
             padding: 30px;
             text-align: center;
+            position: relative;
         }
         .header h1 {
             font-size: 2.5em;
@@ -239,14 +245,20 @@
         .btn-reset:hover {
             background: #c53030;
         }
-        .save-indicator {
+        .connection-status {
             display: inline-block;
             padding: 8px 15px;
             background: #38a169;
             color: white;
             border-radius: 5px;
             font-size: 0.9em;
-            margin-left: auto;
+            margin-left: 20px;
+        }
+        .connection-status.offline {
+            background: #e53e3e;
+        }
+        .connection-status.syncing {
+            background: #dd6b20;
         }
         .tabs {
             display: flex;
@@ -273,14 +285,20 @@
         .tab-content.active {
             display: block;
         }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #667eea;
+            font-size: 1.2em;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>💱 Gestionnaire de Change</h1>
-            <p>Suivi des transactions Euro ⇄ CFA</p>
-            <span class="save-indicator">✓ Sauvegarde automatique activée</span>
+            <p>Suivi des transactions Euro ⇄ CFA (Synchronisation en temps réel)</p>
+            <div class="connection-status" id="connectionStatus">Connexion...</div>
         </div>
 
         <div class="action-buttons">
@@ -353,6 +371,7 @@
 
             <div class="table-container">
                 <h2>Historique des Transactions Euro</h2>
+                <div id="euroLoading" class="loading">Chargement des données en temps réel...</div>
                 <table>
                     <thead>
                         <tr>
@@ -414,6 +433,7 @@
 
             <div class="table-container">
                 <h2>Historique des Transactions CFA</h2>
+                <div id="cfaLoading" class="loading">Chargement des données en temps réel...</div>
                 <table>
                     <thead>
                         <tr>
@@ -484,8 +504,27 @@
     </div>
 
     <script>
+        // =================== CONFIGURATION FIREBASE ===================
+        const firebaseConfig = {
+            apiKey: "AIzaSyBOze4uwJHuRd-UVOcLemRn1AFxA93UBcQ",
+            authDomain: "gestion-change.firebaseapp.com",
+            projectId: "gestion-change",
+            storageBucket: "gestion-change.firebasestorage.app",
+            messagingSenderId: "773358376046",
+            appId: "1:773358376046:web:c4de3857d99b6c9608027f",
+            databaseURL: "https://gestion-change-default-rtdb.europe-west1.firebasedatabase.app/"
+        };
+
+        // Initialisation Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // =================== DONNÉES ===================
         let euroTransactions = [];
         let cfaTransactions = [];
+        let isSyncing = false;
+        let lastSyncTime = null;
+
         const historicalData = {
             euro: [
                 {date: '2024-01-01', operation: 'Sortie', entree: 0, sortie: 0, personne: 'Youssouf / Abakar', remarque: ''},
@@ -536,45 +575,95 @@
             ]
         };
 
-        function saveToLocalStorage() {
-            try {
-                localStorage.setItem('euroTransactions', JSON.stringify(euroTransactions));
-                localStorage.setItem('cfaTransactions', JSON.stringify(cfaTransactions));
-                console.log('Données sauvegardées automatiquement ✓');
-            } catch (e) {
-                console.error('Erreur de sauvegarde:', e);
-            }
+        // =================== FONCTIONS FIREBASE ===================
+        function updateConnectionStatus(status, text) {
+            const statusEl = document.getElementById('connectionStatus');
+            statusEl.textContent = text;
+            statusEl.className = 'connection-status ' + status;
         }
 
-        function loadFromLocalStorage() {
-            try {
-                const savedEuro = localStorage.getItem('euroTransactions');
-                const savedCfa = localStorage.getItem('cfaTransactions');
-                
-                if (savedEuro && savedCfa) {
-                    euroTransactions = JSON.parse(savedEuro);
-                    cfaTransactions = JSON.parse(savedCfa);
-                    console.log('Données chargées depuis la sauvegarde ✓');
-                    return true;
+        function saveToFirebase() {
+            isSyncing = true;
+            updateConnectionStatus('syncing', 'Synchronisation...');
+            
+            const updates = {};
+            updates['/euroTransactions'] = euroTransactions;
+            updates['/cfaTransactions'] = cfaTransactions;
+            
+            database.ref().update(updates)
+                .then(() => {
+                    lastSyncTime = new Date();
+                    updateConnectionStatus('online', `✓ Synchronisé ${lastSyncTime.toLocaleTimeString()}`);
+                    isSyncing = false;
+                })
+                .catch(error => {
+                    console.error('Erreur Firebase:', error);
+                    updateConnectionStatus('offline', '✗ Erreur de synchronisation');
+                    isSyncing = false;
+                });
+        }
+
+        function listenToFirebase() {
+            updateConnectionStatus('syncing', 'Connexion à la base de données...');
+            
+            // Écouter les transactions Euro
+            database.ref('euroTransactions').on('value', (snapshot) => {
+                if (snapshot.exists()) {
+                    euroTransactions = snapshot.val();
+                    document.getElementById('euroLoading').style.display = 'none';
+                    updateDisplay();
                 }
-            } catch (e) {
-                console.error('Erreur de chargement:', e);
-            }
-            return false;
+            }, (error) => {
+                console.error('Erreur Euro:', error);
+                updateConnectionStatus('offline', '✗ Erreur de connexion');
+            });
+            
+            // Écouter les transactions CFA
+            database.ref('cfaTransactions').on('value', (snapshot) => {
+                if (snapshot.exists()) {
+                    cfaTransactions = snapshot.val();
+                    document.getElementById('cfaLoading').style.display = 'none';
+                    updateDisplay();
+                }
+            }, (error) => {
+                console.error('Erreur CFA:', error);
+                updateConnectionStatus('offline', '✗ Erreur de connexion');
+            });
+            
+            // Écouter l'état de connexion
+            database.ref('.info/connected').on('value', (snapshot) => {
+                if (snapshot.val() === true) {
+                    updateConnectionStatus('online', '✓ Connecté en temps réel');
+                } else {
+                    updateConnectionStatus('offline', '✗ Hors ligne');
+                }
+            });
         }
 
+        function checkFirebaseData() {
+            database.ref('euroTransactions').once('value').then((snapshot) => {
+                if (!snapshot.exists()) {
+                    // Si la base de données est vide, charger les données historiques
+                    loadHistoricalData();
+                } else {
+                    updateDisplay();
+                }
+            });
+        }
+
+        // =================== FONCTIONS PRINCIPALES ===================
         function loadHistoricalData() {
             euroTransactions = [...historicalData.euro];
             cfaTransactions = [...historicalData.cfa];
-            saveToLocalStorage();
-            updateDisplay();
+            saveToFirebase();
         }
 
         function exportData() {
             const data = {
                 euroTransactions,
                 cfaTransactions,
-                exportDate: new Date().toISOString()
+                exportDate: new Date().toISOString(),
+                lastSync: lastSyncTime ? lastSyncTime.toISOString() : null
             };
             
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -599,12 +688,11 @@
                 try {
                     const data = JSON.parse(e.target.result);
                     if (data.euroTransactions && data.cfaTransactions) {
-                        if (confirm('⚠️ Voulez-vous remplacer toutes les données actuelles par les données importées ?')) {
+                        if (confirm('⚠️ Voulez-vous remplacer toutes les données actuelles par les données importées ? Cette action sera synchronisée avec tous les utilisateurs.')) {
                             euroTransactions = data.euroTransactions;
                             cfaTransactions = data.cfaTransactions;
-                            saveToLocalStorage();
-                            updateDisplay();
-                            alert('✓ Données importées avec succès !');
+                            saveToFirebase();
+                            alert('✓ Données importées et synchronisées !');
                         }
                     } else {
                         alert('❌ Fichier invalide. Assurez-vous d\'importer un fichier exporté depuis cette application.');
@@ -618,9 +706,9 @@
         }
 
         function resetToHistorical() {
-            if (confirm('⚠️ Voulez-vous vraiment réinitialiser toutes les données aux valeurs historiques ? Toutes vos modifications seront perdues.')) {
+            if (confirm('⚠️ Voulez-vous vraiment réinitialiser toutes les données aux valeurs historiques ? Toutes les modifications seront perdues pour tous les utilisateurs.')) {
                 loadHistoricalData();
-                alert('✓ Données réinitialisées aux valeurs historiques !');
+                alert('✓ Données réinitialisées et synchronisées !');
             }
         }
 
@@ -659,7 +747,13 @@
             displayTransactions('euro', euroWithSolde);
             displayTransactions('cfa', cfaWithSolde);
             
-            saveToLocalStorage();
+            // Sauvegarde locale pour le mode hors ligne
+            try {
+                localStorage.setItem('lastEuroTransactions', JSON.stringify(euroTransactions));
+                localStorage.setItem('lastCfaTransactions', JSON.stringify(cfaTransactions));
+            } catch (e) {
+                console.log('LocalStorage non disponible');
+            }
         }
 
         function displayTransactions(type, transactions) {
@@ -727,17 +821,19 @@
                 cfaTransactions[index] = updatedTransaction;
             }
 
+            saveToFirebase();
             updateDisplay();
             closeEditModal();
         });
 
         function deleteTransaction(type, index) {
-            if (confirm('Êtes-vous sûr de vouloir supprimer cette transaction ?')) {
+            if (confirm('Êtes-vous sûr de vouloir supprimer cette transaction ? Cette action sera synchronisée avec tous les utilisateurs.')) {
                 if (type === 'euro') {
                     euroTransactions.splice(index, 1);
                 } else {
                     cfaTransactions.splice(index, 1);
                 }
+                saveToFirebase();
                 updateDisplay();
             }
         }
@@ -756,6 +852,7 @@
             };
 
             euroTransactions.push(transaction);
+            saveToFirebase();
             updateDisplay();
             this.reset();
         });
@@ -774,20 +871,36 @@
             };
 
             cfaTransactions.push(transaction);
+            saveToFirebase();
             updateDisplay();
             this.reset();
         });
 
-        const today = new Date().toISOString().split('T')[0];
-        document.getElementById('euroDate').value = today;
-        document.getElementById('cfaDate').value = today;
-
-        // Charger les données au démarrage
-        if (!loadFromLocalStorage()) {
-            loadHistoricalData();
-        } else {
-            updateDisplay();
-        }
+        // =================== INITIALISATION ===================
+        document.addEventListener('DOMContentLoaded', function() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('euroDate').value = today;
+            document.getElementById('cfaDate').value = today;
+            
+            // Démarrer l'écoute Firebase
+            listenToFirebase();
+            
+            // Vérifier les données après un délai
+            setTimeout(checkFirebaseData, 2000);
+            
+            // Charger les données locales en attendant
+            try {
+                const localEuro = localStorage.getItem('lastEuroTransactions');
+                const localCfa = localStorage.getItem('lastCfaTransactions');
+                if (localEuro && localCfa) {
+                    euroTransactions = JSON.parse(localEuro);
+                    cfaTransactions = JSON.parse(localCfa);
+                    updateDisplay();
+                }
+            } catch (e) {
+                // Ignorer les erreurs localStorage
+            }
+        });
     </script>
 </body>
 </html>
