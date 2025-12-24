@@ -214,6 +214,40 @@
         .btn-secondary:hover {
             background: #4a5568;
         }
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            padding: 20px 30px;
+            background: #f8f9fa;
+            flex-wrap: wrap;
+        }
+        .btn-export {
+            background: #38a169;
+        }
+        .btn-export:hover {
+            background: #2f855a;
+        }
+        .btn-import {
+            background: #dd6b20;
+        }
+        .btn-import:hover {
+            background: #c05621;
+        }
+        .btn-reset {
+            background: #e53e3e;
+        }
+        .btn-reset:hover {
+            background: #c53030;
+        }
+        .save-indicator {
+            display: inline-block;
+            padding: 8px 15px;
+            background: #38a169;
+            color: white;
+            border-radius: 5px;
+            font-size: 0.9em;
+            margin-left: auto;
+        }
         .tabs {
             display: flex;
             background: #f8f9fa;
@@ -246,6 +280,14 @@
         <div class="header">
             <h1>💱 Gestionnaire de Change</h1>
             <p>Suivi des transactions Euro ⇄ CFA</p>
+            <span class="save-indicator">✓ Sauvegarde automatique activée</span>
+        </div>
+
+        <div class="action-buttons">
+            <button class="btn btn-export" onclick="exportData()">📥 Exporter les données</button>
+            <button class="btn btn-import" onclick="document.getElementById('importFile').click()">📤 Importer les données</button>
+            <input type="file" id="importFile" accept=".json" style="display: none;" onchange="importData(event)">
+            <button class="btn btn-reset" onclick="resetToHistorical()">🔄 Réinitialiser aux données historiques</button>
         </div>
 
         <div class="soldes">
@@ -444,9 +486,8 @@
     <script>
         let euroTransactions = [];
         let cfaTransactions = [];
-
-        function loadHistoricalData() {
-            const euroHistorical = [
+        const historicalData = {
+            euro: [
                 {date: '2024-01-01', operation: 'Sortie', entree: 0, sortie: 0, personne: 'Youssouf / Abakar', remarque: ''},
                 {date: '2024-01-02', operation: 'Entrée', entree: 3000, sortie: 0, personne: 'Issa', remarque: ''},
                 {date: '2024-01-03', operation: 'Sortie', entree: 0, sortie: 23, personne: 'Issa', remarque: 'Différence taux 670 et 675'},
@@ -471,9 +512,8 @@
                 {date: '2024-01-22', operation: 'Entrée', entree: 300, sortie: 0, personne: 'Ms ibni', remarque: ''},
                 {date: '2024-01-23', operation: 'Entrée', entree: 100, sortie: 0, personne: 'Issa', remarque: ''},
                 {date: '2024-01-24', operation: 'Sortie', entree: 0, sortie: 70, personne: 'Issa', remarque: 'Bénéfice Issa sur 4000$ et 3000€'}
-            ];
-
-            const cfaHistorical = [
+            ],
+            cfa: [
                 {date: '2024-01-01', operation: 'Entrée', entree: 4865000, sortie: 0, personne: 'Capital initial', remarque: ''},
                 {date: '2024-01-02', operation: 'Sortie', entree: 0, sortie: 400000, personne: 'You', remarque: ''},
                 {date: '2024-01-03', operation: 'Sortie', entree: 0, sortie: 350000, personne: 'Abakar Doungous', remarque: ''},
@@ -493,12 +533,95 @@
                 {date: '2024-01-17', operation: 'Sortie', entree: 0, sortie: 67500, personne: 'Issa', remarque: ''},
                 {date: '2024-01-18', operation: 'Sortie', entree: 0, sortie: 532000, personne: 'Ms Ibni', remarque: ''},
                 {date: '2024-01-19', operation: 'Sortie', entree: 0, sortie: 67000, personne: 'Issa', remarque: ''}
-            ];
+            ]
+        };
 
-            euroTransactions = euroHistorical;
-            cfaTransactions = cfaHistorical;
-            
+        function saveToLocalStorage() {
+            try {
+                localStorage.setItem('euroTransactions', JSON.stringify(euroTransactions));
+                localStorage.setItem('cfaTransactions', JSON.stringify(cfaTransactions));
+                console.log('Données sauvegardées automatiquement ✓');
+            } catch (e) {
+                console.error('Erreur de sauvegarde:', e);
+            }
+        }
+
+        function loadFromLocalStorage() {
+            try {
+                const savedEuro = localStorage.getItem('euroTransactions');
+                const savedCfa = localStorage.getItem('cfaTransactions');
+                
+                if (savedEuro && savedCfa) {
+                    euroTransactions = JSON.parse(savedEuro);
+                    cfaTransactions = JSON.parse(savedCfa);
+                    console.log('Données chargées depuis la sauvegarde ✓');
+                    return true;
+                }
+            } catch (e) {
+                console.error('Erreur de chargement:', e);
+            }
+            return false;
+        }
+
+        function loadHistoricalData() {
+            euroTransactions = [...historicalData.euro];
+            cfaTransactions = [...historicalData.cfa];
+            saveToLocalStorage();
             updateDisplay();
+        }
+
+        function exportData() {
+            const data = {
+                euroTransactions,
+                cfaTransactions,
+                exportDate: new Date().toISOString()
+            };
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `transactions-change-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            alert('✓ Données exportées avec succès !');
+        }
+
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (data.euroTransactions && data.cfaTransactions) {
+                        if (confirm('⚠️ Voulez-vous remplacer toutes les données actuelles par les données importées ?')) {
+                            euroTransactions = data.euroTransactions;
+                            cfaTransactions = data.cfaTransactions;
+                            saveToLocalStorage();
+                            updateDisplay();
+                            alert('✓ Données importées avec succès !');
+                        }
+                    } else {
+                        alert('❌ Fichier invalide. Assurez-vous d\'importer un fichier exporté depuis cette application.');
+                    }
+                } catch (error) {
+                    alert('❌ Erreur lors de l\'importation : ' + error.message);
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        function resetToHistorical() {
+            if (confirm('⚠️ Voulez-vous vraiment réinitialiser toutes les données aux valeurs historiques ? Toutes vos modifications seront perdues.')) {
+                loadHistoricalData();
+                alert('✓ Données réinitialisées aux valeurs historiques !');
+            }
         }
 
         function switchTab(tab) {
@@ -535,6 +658,8 @@
 
             displayTransactions('euro', euroWithSolde);
             displayTransactions('cfa', cfaWithSolde);
+            
+            saveToLocalStorage();
         }
 
         function displayTransactions(type, transactions) {
@@ -657,7 +782,12 @@
         document.getElementById('euroDate').value = today;
         document.getElementById('cfaDate').value = today;
 
-        loadHistoricalData();
+        // Charger les données au démarrage
+        if (!loadFromLocalStorage()) {
+            loadHistoricalData();
+        } else {
+            updateDisplay();
+        }
     </script>
 </body>
 </html>
