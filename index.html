@@ -3,994 +3,1018 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestionnaire de Change Euro/CFA</title>
-    
-    <!-- Firebase SDK (Version compatible) -->
+    <title>KANGA · Euro/CFA Manager</title>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-    
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        @import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap');
+
+        :root {
+            --bg: #f8fafc;
+            --surface: #ffffff;
+            --surface2: #f1f5f9;
+            --border: #e2e8f0;
+            --border2: #cbd5e1;
+            --text: #0f172a;
+            --text2: #475569;
+            --text3: #94a3b8;
+            --accent: #3b82f6;
+            --accent-dark: #2563eb;
+            --accent-light: #eff6ff;
+            --green: #10b981;
+            --green-light: #ecfdf5;
+            --red: #ef4444;
+            --red-light: #fef2f2;
+            --amber: #f59e0b;
+            --amber-light: #fffbeb;
+            --purple: #8b5cf6;
+            --purple-light: #f5f3ff;
+            --radius: 10px;
+            --radius-lg: 16px;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
         }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 10px;
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            padding: 20px;
             min-height: 100vh;
+            color: var(--text);
         }
+
         .container {
             max-width: 1400px;
             margin: 0 auto;
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            overflow: hidden;
         }
+
+        /* HEADER */
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px 15px;
-            text-align: center;
-            position: relative;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #fff;
+            padding: 24px 32px;
+            border-radius: var(--radius-lg);
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 16px;
+            box-shadow: var(--shadow-md);
         }
-        .header h1 {
-            font-size: 1.8em;
-            margin-bottom: 8px;
+        .header-left h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            background: linear-gradient(135deg, #fff, #94a3b8);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
         }
-        .header p {
-            font-size: 0.9em;
-            margin-bottom: 10px;
-            opacity: 0.9;
+        .header-left p {
+            font-size: 0.8rem;
+            opacity: 0.7;
+            margin-top: 4px;
         }
+        .connection-status {
+            font-size: 0.75rem;
+            padding: 6px 14px;
+            border-radius: 40px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            font-weight: 500;
+        }
+        .connection-status.online { background: rgba(16,185,129,0.2); border-color: rgba(16,185,129,0.4); color: #86efac; }
+        .connection-status.offline { background: rgba(239,68,68,0.2); border-color: rgba(239,68,68,0.4); color: #fca5a5; }
+        .connection-status.syncing { background: rgba(245,158,11,0.2); border-color: rgba(245,158,11,0.4); color: #fcd34d; }
+
+        /* SOLDES */
         .soldes {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-            padding: 20px;
-            background: #f8f9fa;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
         }
         .solde-card {
-            background: white;
-            padding: 15px;
-            border-radius: 10px;
-            box-shadow: 0 3px 5px rgba(0,0,0,0.1);
-            text-align: center;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 20px 24px;
+            transition: all 0.2s ease;
+            box-shadow: var(--shadow-sm);
+        }
+        .solde-card:hover {
+            box-shadow: var(--shadow-md);
+            border-color: var(--border2);
         }
         .solde-card h3 {
-            color: #667eea;
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text3);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
             margin-bottom: 8px;
-            font-size: 0.95em;
         }
         .solde-amount {
-            font-size: 1.5em;
-            font-weight: bold;
-            color: #2d3748;
-            word-break: break-word;
+            font-size: 1.8rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
         }
+        .solde-card.euro .solde-amount { color: var(--accent); }
+        .solde-card.cfa .solde-amount { color: var(--green); }
+
+        /* ACTION BUTTONS */
+        .action-bar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 18px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--surface);
+            color: var(--text2);
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn:hover { 
+            background: var(--surface2); 
+            border-color: var(--border2);
+            transform: translateY(-1px);
+        }
+        .btn-primary { 
+            background: var(--accent); 
+            color: #fff; 
+            border-color: var(--accent);
+        }
+        .btn-primary:hover { 
+            background: var(--accent-dark); 
+            transform: translateY(-1px);
+        }
+        .btn-green { background: var(--green-light); color: var(--green); border-color: #a7f3d0; }
+        .btn-green:hover { background: #d1fae5; }
+        .btn-amber { background: var(--amber-light); color: var(--amber); border-color: #fed7aa; }
+        .btn-amber:hover { background: #fef3c7; }
+
+        /* TABS */
+        .tabs {
+            display: flex;
+            gap: 8px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 6px;
+            margin-bottom: 24px;
+        }
+        .tab {
+            padding: 10px 24px;
+            border-radius: var(--radius);
+            border: none;
+            background: none;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text2);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .tab.active { 
+            background: var(--accent); 
+            color: #fff; 
+            box-shadow: var(--shadow-sm);
+        }
+        .tab:hover:not(.active) { 
+            background: var(--surface2); 
+            color: var(--text);
+        }
+
+        /* TAB CONTENT */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* FILTERS */
+        .filters-bar {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 16px 20px;
+            margin-bottom: 24px;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 120px;
+            flex: 1;
+        }
+        .filter-group label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text3);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .filter-group input, .filter-group select {
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 0.85rem;
+            background: var(--surface2);
+            color: var(--text);
+            transition: all 0.2s;
+        }
+        .filter-group input:focus, .filter-group select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+        }
+        .filter-reset {
+            padding: 8px 16px;
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 0.8rem;
+            color: var(--text2);
+            cursor: pointer;
+            transition: all 0.2s;
+            align-self: flex-end;
+        }
+        .filter-reset:hover { 
+            background: var(--red-light); 
+            color: var(--red); 
+            border-color: #fecaca;
+        }
+
+        /* FORM */
         .form-section {
-            padding: 20px 15px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow-sm);
         }
         .form-section h2 {
-            font-size: 1.3em;
-            margin-bottom: 15px;
-            color: #2d3748;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 18px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
         }
         .form-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 10px;
-            margin-bottom: 15px;
+            gap: 16px;
+            margin-bottom: 16px;
         }
-        .form-group {
-            display: flex;
-            flex-direction: column;
-        }
-        label {
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-group label {
+            font-size: 0.7rem;
             font-weight: 600;
-            margin-bottom: 5px;
-            color: #2d3748;
-            font-size: 0.9em;
+            color: var(--text3);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
-        input, select, textarea {
-            padding: 10px;
-            border: 2px solid #e2e8f0;
-            border-radius: 5px;
-            font-size: 1em;
-            transition: border-color 0.3s;
-            width: 100%;
+        .form-group input, .form-group select, .form-group textarea {
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 0.85rem;
+            background: var(--surface2);
+            transition: all 0.2s;
         }
-        input:focus, select:focus, textarea:focus {
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+            background: var(--surface);
         }
-        textarea {
-            resize: vertical;
-            min-height: 60px;
+        .form-group textarea { resize: vertical; min-height: 60px; }
+
+        /* TABLE */
+        .table-section {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow-sm);
         }
-        .btn {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 12px 20px;
-            border: none;
-            border-radius: 5px;
-            font-size: 1em;
-            cursor: pointer;
-            transition: transform 0.2s;
-            width: 100%;
-            margin-top: 10px;
+        .table-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 8px;
         }
-        .btn:hover {
-            transform: translateY(-2px);
-        }
-        .table-container {
-            padding: 20px 15px;
-            overflow-x: auto;
-        }
-        .table-container h2 {
-            font-size: 1.3em;
-            margin-bottom: 15px;
-            color: #2d3748;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            background: white;
-            min-width: 800px; /* Pour permettre le scroll horizontal sur mobile */
-        }
+        .table-header h2 { font-size: 0.95rem; font-weight: 600; }
+        .table-info { font-size: 0.75rem; color: var(--text3); }
+        .table-scroll { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; min-width: 750px; }
         th {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 12px 8px;
+            background: var(--surface2);
+            color: var(--text2);
+            padding: 12px 16px;
             text-align: left;
+            font-size: 0.7rem;
             font-weight: 600;
-            font-size: 0.85em;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            border-bottom: 1px solid var(--border);
         }
         td {
-            padding: 10px 8px;
-            border-bottom: 1px solid #e2e8f0;
-            font-size: 0.85em;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.85rem;
+            color: var(--text);
         }
-        tr:hover {
-            background: #f7fafc;
-        }
-        .entree {
-            color: #38a169;
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: var(--bg); }
+        .cell-mono { font-family: 'Inter', monospace; font-weight: 500; }
+        .cell-entree { color: var(--green); font-weight: 600; }
+        .cell-sortie { color: var(--red); font-weight: 600; }
+        .cell-solde { font-weight: 600; }
+        .cell-solde.positive { color: var(--green); }
+        .cell-solde.negative { color: var(--red); }
+        .badge-op {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 40px;
+            font-size: 0.7rem;
             font-weight: 600;
         }
-        .sortie {
-            color: #e53e3e;
-            font-weight: 600;
-        }
-        .delete-btn {
-            background: #e53e3e;
-            color: white;
-            border: none;
-            padding: 5px 8px;
-            border-radius: 3px;
+        .badge-entree { background: var(--green-light); color: var(--green); }
+        .badge-sortie { background: var(--red-light); color: var(--red); }
+        .edit-btn, .delete-btn {
+            padding: 5px 12px;
+            border-radius: 6px;
             cursor: pointer;
-            margin-left: 3px;
-            font-size: 0.8em;
-        }
-        .delete-btn:hover {
-            background: #c53030;
+            font-size: 0.7rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            border: none;
         }
         .edit-btn {
-            background: #3182ce;
-            color: white;
-            border: none;
-            padding: 5px 8px;
-            border-radius: 3px;
-            cursor: pointer;
-            font-size: 0.8em;
+            background: var(--accent-light);
+            color: var(--accent);
         }
-        .edit-btn:hover {
-            background: #2c5282;
+        .edit-btn:hover { background: #dbeafe; transform: translateY(-1px); }
+        .delete-btn {
+            background: var(--red-light);
+            color: var(--red);
+            margin-left: 6px;
         }
-        .action-buttons {
+        .delete-btn:hover { background: #fee2e2; transform: translateY(-1px); }
+        .empty-state {
+            text-align: center;
+            padding: 48px;
+            color: var(--text3);
+        }
+
+        /* STATS */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            box-shadow: var(--shadow-sm);
+        }
+        .stat-card .stat-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text3);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 8px;
+        }
+        .stat-card .stat-value {
+            font-size: 1.6rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+        .stat-card .stat-sub {
+            font-size: 0.7rem;
+            color: var(--text3);
+            margin-top: 6px;
+        }
+        .stat-green .stat-value { color: var(--green); }
+        .stat-red .stat-value { color: var(--red); }
+        .stat-blue .stat-value { color: var(--accent); }
+
+        .monthly-table-wrap {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            margin-bottom: 24px;
+        }
+        .monthly-table-wrap h2 {
+            font-size: 0.95rem;
+            font-weight: 600;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+        .month-select-row {
+            padding: 16px 20px;
             display: flex;
-            gap: 10px;
-            padding: 15px;
-            background: #f8f9fa;
+            gap: 16px;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            flex-wrap: wrap;
+            background: var(--surface2);
+        }
+        .month-select-row label { font-size: 0.8rem; color: var(--text2); font-weight: 500; }
+        .month-select-row select {
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 0.85rem;
+            background: var(--surface);
+            color: var(--text);
+        }
+        .month-select-row select:focus { outline: none; border-color: var(--accent); }
+
+        /* NOTES */
+        .notes-grid {
+            display: grid;
+            grid-template-columns: 340px 1fr;
+            gap: 20px;
+        }
+        .notes-list-panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            max-height: 680px;
+            box-shadow: var(--shadow-sm);
+        }
+        .notes-list-header {
+            padding: 16px 18px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .notes-list-header h2 { font-size: 0.9rem; font-weight: 600; }
+        .notes-search {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        .notes-search input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 0.85rem;
+            background: var(--surface2);
+        }
+        .notes-search input:focus { outline: none; border-color: var(--accent); }
+        .notes-list { overflow-y: auto; flex: 1; }
+        .note-item {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .note-item:hover { background: var(--surface2); }
+        .note-item.active { background: var(--accent-light); border-left: 3px solid var(--accent); }
+        .note-item-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .note-item-preview {
+            font-size: 0.75rem;
+            color: var(--text3);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .note-item-date {
+            font-size: 0.65rem;
+            color: var(--text3);
+            margin-top: 6px;
+        }
+        .note-empty-list {
+            padding: 40px;
+            text-align: center;
+            color: var(--text3);
+        }
+
+        .notes-editor-panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            max-height: 680px;
+            box-shadow: var(--shadow-sm);
+        }
+        .editor-toolbar {
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
             flex-wrap: wrap;
         }
-        .btn-export {
-            background: #38a169;
+        .editor-toolbar-left { display: flex; gap: 10px; align-items: center; flex: 1; }
+        .note-title-input {
             flex: 1;
-            min-width: 140px;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 0.9rem;
+            font-weight: 500;
+            background: var(--surface2);
         }
-        .btn-export:hover {
-            background: #2f855a;
-        }
-        .btn-import {
-            background: #dd6b20;
+        .note-title-input:focus { outline: none; border-color: var(--accent); }
+        .note-content-area {
             flex: 1;
-            min-width: 140px;
-        }
-        .btn-import:hover {
-            background: #c05621;
-        }
-        .connection-status {
-            display: inline-block;
-            padding: 6px 12px;
-            background: #38a169;
-            color: white;
-            border-radius: 5px;
-            font-size: 0.8em;
-            margin-top: 5px;
-        }
-        .connection-status.offline {
-            background: #e53e3e;
-        }
-        .connection-status.syncing {
-            background: #dd6b20;
-        }
-        .tabs {
-            display: flex;
-            background: #f8f9fa;
-            border-bottom: 2px solid #e2e8f0;
-            overflow-x: auto;
-            white-space: nowrap;
-        }
-        .tab {
-            padding: 15px 20px;
-            cursor: pointer;
+            padding: 18px;
             border: none;
-            background: none;
-            font-size: 1em;
-            transition: all 0.3s;
-            flex-shrink: 0;
+            resize: none;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            background: var(--surface);
+            font-family: 'Inter', sans-serif;
         }
-        .tab.active {
-            background: white;
-            border-bottom: 3px solid #667eea;
-            font-weight: 600;
-            color: #667eea;
+        .note-content-area:focus { outline: none; }
+        .editor-status {
+            padding: 10px 18px;
+            border-top: 1px solid var(--border);
+            font-size: 0.7rem;
+            color: var(--text3);
+            display: flex;
+            justify-content: space-between;
         }
-        .tab-content {
-            display: none;
+        .note-no-selection {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text3);
+            gap: 12px;
+            padding: 48px;
         }
-        .tab-content.active {
-            display: block;
-        }
-        .loading {
-            text-align: center;
-            padding: 30px 15px;
-            color: #667eea;
-            font-size: 1em;
-        }
-        
-        /* Modal responsive */
-        .modal {
+        .note-no-selection-icon { font-size: 3rem; opacity: 0.5; }
+
+        /* MODAL */
+        .modal-overlay {
             display: none;
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            inset: 0;
             background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(4px);
             z-index: 1000;
             align-items: center;
             justify-content: center;
-            padding: 15px;
-        }
-        .modal.active {
-            display: flex;
-        }
-        .modal-content {
-            background: white;
             padding: 20px;
-            border-radius: 10px;
-            max-width: 500px;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: var(--surface);
+            border-radius: var(--radius-lg);
+            padding: 28px;
+            max-width: 540px;
             width: 100%;
             max-height: 90vh;
             overflow-y: auto;
+            box-shadow: var(--shadow-md);
         }
         .modal-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 15px;
+            margin-bottom: 20px;
+            padding-bottom: 14px;
+            border-bottom: 1px solid var(--border);
         }
-        .modal-header h2 {
-            color: #667eea;
-            font-size: 1.2em;
-        }
+        .modal-header h2 { font-size: 1.1rem; font-weight: 600; }
         .close-btn {
             background: none;
             border: none;
-            font-size: 1.5em;
+            font-size: 1.5rem;
+            color: var(--text3);
             cursor: pointer;
-            color: #718096;
+            padding: 0 8px;
+            border-radius: 6px;
         }
-        .close-btn:hover {
-            color: #2d3748;
+        .close-btn:hover { background: var(--surface2); }
+
+        /* LOADING */
+        .loading {
+            padding: 40px;
+            text-align: center;
+            color: var(--text3);
         }
-        .btn-secondary {
-            background: #718096;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 5px;
-            font-size: 1em;
-            cursor: pointer;
-            margin-left: 10px;
-            width: 100%;
-            margin-top: 10px;
+
+        /* RESPONSIVE */
+        @media (max-width: 900px) {
+            .notes-grid { grid-template-columns: 1fr; }
+            .notes-list-panel, .notes-editor-panel { max-height: 400px; }
         }
-        .btn-secondary:hover {
-            background: #4a5568;
+        @media (max-width: 640px) {
+            body { padding: 12px; }
+            .header { padding: 16px 20px; }
+            .header-left h1 { font-size: 1.2rem; }
+            .soldes { grid-template-columns: repeat(2, 1fr); }
+            .form-grid { grid-template-columns: 1fr; }
         }
-        
-        /* Media Queries pour mobile */
-        @media (max-width: 768px) {
-            body {
-                padding: 5px;
-            }
-            .header h1 {
-                font-size: 1.5em;
-            }
-            .soldes {
-                grid-template-columns: repeat(3, 1fr);
-                gap: 10px;
-                padding: 15px;
-            }
-            .solde-card {
-                padding: 12px;
-            }
-            .solde-amount {
-                font-size: 1.2em;
-            }
-            .action-buttons {
-                flex-direction: column;
-                gap: 8px;
-            }
-            .tabs {
-                justify-content: space-between;
-            }
-            .tab {
-                padding: 12px 15px;
-                flex: 1;
-                text-align: center;
-            }
-            th, td {
-                padding: 8px 6px;
-                font-size: 0.8em;
-            }
-            .edit-btn, .delete-btn {
-                padding: 4px 6px;
-                font-size: 0.75em;
-                margin: 2px;
-            }
+
+        /* TOAST */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #1e293b;
+            color: #fff;
+            padding: 12px 20px;
+            border-radius: var(--radius);
+            font-size: 0.8rem;
+            z-index: 9999;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.25s ease;
+            pointer-events: none;
+            font-weight: 500;
+            box-shadow: var(--shadow-md);
         }
-        
-        @media (max-width: 480px) {
-            .header h1 {
-                font-size: 1.3em;
-            }
-            .soldes {
-                grid-template-columns: 1fr;
-                gap: 8px;
-            }
-            .form-grid {
-                grid-template-columns: 1fr;
-            }
-            .tab {
-                padding: 10px 12px;
-                font-size: 0.9em;
-            }
-            th, td {
-                padding: 6px 4px;
-                font-size: 0.75em;
-            }
-        }
+        .toast.show { opacity: 1; transform: translateY(0); }
+        .toast.success { background: var(--green); }
+        .toast.error { background: var(--red); }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>💱 Gestionnaire de Change</h1>
-            <p>Suivi des transactions Euro ⇄ CFA (Synchronisation en temps réel)</p>
-            <div class="connection-status" id="connectionStatus">Connexion...</div>
+<div class="container">
+
+    <!-- HEADER -->
+    <div class="header">
+        <div class="header-left">
+            <h1>KANGA · Euro/CFA Manager</h1>
+            <p>Synchronisation en temps réel — Firebase</p>
         </div>
+        <div class="connection-status" id="connectionStatus">Connexion...</div>
+    </div>
 
-        <div class="action-buttons">
-            <button class="btn btn-export" onclick="exportData()">📥 Exporter les données</button>
-            <button class="btn btn-import" onclick="document.getElementById('importFile').click()">📤 Importer les données</button>
-            <input type="file" id="importFile" accept=".json" style="display: none;" onchange="importData(event)">
-            <!-- Bouton Réinitialiser supprimé -->
+    <!-- SOLDES -->
+    <div class="soldes">
+        <div class="solde-card euro">
+            <h3>Solde Euro</h3>
+            <div class="solde-amount" id="soldeEuro">0,00 €</div>
         </div>
-
-        <div class="soldes">
-            <div class="solde-card">
-                <h3>💶 Solde Euro</h3>
-                <div class="solde-amount" id="soldeEuro">0 €</div>
-            </div>
-            <div class="solde-card">
-                <h3>💰 Solde CFA</h3>
-                <div class="solde-amount" id="soldeCFA">0 CFA</div>
-            </div>
-            <div class="solde-card">
-                <h3>📊 Transactions Totales</h3>
-                <div class="solde-amount" id="totalTransactions">0</div>
-            </div>
+        <div class="solde-card cfa">
+            <h3>Solde CFA</h3>
+            <div class="solde-amount" id="soldeCFA">0 CFA</div>
         </div>
-
-        <div class="tabs">
-            <button class="tab active" onclick="switchTab('euro')">Transactions Euro</button>
-            <button class="tab" onclick="switchTab('cfa')">Transactions CFA</button>
+        <div class="solde-card">
+            <h3>Transactions totales</h3>
+            <div class="solde-amount" id="totalTransactions">0</div>
         </div>
-
-        <div id="euroTab" class="tab-content active">
-            <div class="form-section">
-                <h2>Nouvelle Transaction Euro</h2>
-                <form id="euroForm">
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label>Date</label>
-                            <input type="date" id="euroDate" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Type d'opération</label>
-                            <select id="euroOperation" required>
-                                <option value="Entrée">Entrée</option>
-                                <option value="Sortie">Sortie</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Entrée (€)</label>
-                            <input type="number" id="euroEntree" step="0.01" min="0">
-                        </div>
-                        <div class="form-group">
-                            <label>Sortie (€)</label>
-                            <input type="number" id="euroSortie" step="0.01" min="0">
-                        </div>
-                        <div class="form-group">
-                            <label>Personne</label>
-                            <input type="text" id="euroPersonne" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Taux de change</label>
-                            <input type="number" id="euroTaux" step="0.01" placeholder="Optionnel">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Remarque</label>
-                        <textarea id="euroRemarque"></textarea>
-                    </div>
-                    <button type="submit" class="btn">Ajouter Transaction</button>
-                </form>
-            </div>
-
-            <div class="table-container">
-                <h2>Historique des Transactions Euro</h2>
-                <div id="euroLoading" class="loading">Chargement des données en temps réel...</div>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Opération</th>
-                            <th>Entrée</th>
-                            <th>Sortie</th>
-                            <th>Solde</th>
-                            <th>Personne</th>
-                            <th>Remarque</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="euroTableBody"></tbody>
-                </table>
-            </div>
-        </div>
-
-        <div id="cfaTab" class="tab-content">
-            <div class="form-section">
-                <h2>Nouvelle Transaction CFA</h2>
-                <form id="cfaForm">
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label>Date</label>
-                            <input type="date" id="cfaDate" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Type d'opération</label>
-                            <select id="cfaOperation" required>
-                                <option value="Entrée">Entrée</option>
-                                <option value="Sortie">Sortie</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Entrée (CFA)</label>
-                            <input type="number" id="cfaEntree" step="1" min="0">
-                        </div>
-                        <div class="form-group">
-                            <label>Sortie (CFA)</label>
-                            <input type="number" id="cfaSortie" step="1" min="0">
-                        </div>
-                        <div class="form-group">
-                            <label>Personne</label>
-                            <input type="text" id="cfaPersonne" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Taux de change</label>
-                            <input type="number" id="cfaTaux" step="0.01" placeholder="Optionnel">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Remarque</label>
-                        <textarea id="cfaRemarque"></textarea>
-                    </div>
-                    <button type="submit" class="btn">Ajouter Transaction</button>
-                </form>
-            </div>
-
-            <div class="table-container">
-                <h2>Historique des Transactions CFA</h2>
-                <div id="cfaLoading" class="loading">Chargement des données en temps réel...</div>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Opération</th>
-                            <th>Entrée</th>
-                            <th>Sortie</th>
-                            <th>Solde</th>
-                            <th>Personne</th>
-                            <th>Remarque</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="cfaTableBody"></tbody>
-                </table>
-            </div>
+        <div class="solde-card">
+            <h3>Notes enregistrées</h3>
+            <div class="solde-amount" id="totalNotes">0</div>
         </div>
     </div>
 
-    <div id="editModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Modifier la Transaction</h2>
-                <button class="close-btn" onclick="closeEditModal()">&times;</button>
-            </div>
-            <form id="editForm">
-                <input type="hidden" id="editType">
-                <input type="hidden" id="editIndex">
+    <!-- ACTION BAR -->
+    <div class="action-bar">
+        <button class="btn btn-green" onclick="exportData()">↓ Exporter JSON</button>
+        <button class="btn btn-amber" onclick="document.getElementById('importFile').click()">↑ Importer JSON</button>
+        <input type="file" id="importFile" accept=".json" style="display:none;" onchange="importData(event)">
+    </div>
+
+    <!-- TABS -->
+    <div class="tabs">
+        <button class="tab active" onclick="switchTab('euro')">Euro</button>
+        <button class="tab" onclick="switchTab('cfa')">CFA</button>
+        <button class="tab" onclick="switchTab('stats')">Analyses</button>
+        <button class="tab" onclick="switchTab('notes')">Notes</button>
+    </div>
+
+    <!-- ===== EURO TAB ===== -->
+    <div id="euroTab" class="tab-content active">
+        <div class="filters-bar">
+            <div class="filter-group"><label>Recherche</label><input type="text" id="euroSearch" placeholder="Personne, remarque..." oninput="applyFilters('euro')"></div>
+            <div class="filter-group"><label>Opération</label><select id="euroFilterOp" onchange="applyFilters('euro')"><option value="">Toutes</option><option value="Entrée">Entrées</option><option value="Sortie">Sorties</option></select></div>
+            <div class="filter-group"><label>Date début</label><input type="date" id="euroFilterDateFrom" onchange="applyFilters('euro')"></div>
+            <div class="filter-group"><label>Date fin</label><input type="date" id="euroFilterDateTo" onchange="applyFilters('euro')"></div>
+            <button class="filter-reset" onclick="resetFilters('euro')">Réinitialiser</button>
+        </div>
+
+        <div class="form-section">
+            <h2>➕ Nouvelle transaction Euro</h2>
+            <form id="euroForm">
                 <div class="form-grid">
-                    <div class="form-group">
-                        <label>Date</label>
-                        <input type="date" id="editDate" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Type d'opération</label>
-                        <select id="editOperation" required>
-                            <option value="Entrée">Entrée</option>
-                            <option value="Sortie">Sortie</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Entrée</label>
-                        <input type="number" id="editEntree" step="0.01" min="0">
-                    </div>
-                    <div class="form-group">
-                        <label>Sortie</label>
-                        <input type="number" id="editSortie" step="0.01" min="0">
-                    </div>
-                    <div class="form-group">
-                        <label>Personne</label>
-                        <input type="text" id="editPersonne" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Taux de change</label>
-                        <input type="number" id="editTaux" step="0.01" placeholder="Optionnel">
-                    </div>
+                    <div class="form-group"><label>Date</label><input type="date" id="euroDate" required></div>
+                    <div class="form-group"><label>Opération</label><select id="euroOperation" required><option value="Entrée">Entrée</option><option value="Sortie">Sortie</option></select></div>
+                    <div class="form-group"><label>Entrée (€)</label><input type="number" id="euroEntree" step="0.01" min="0" placeholder="0,00"></div>
+                    <div class="form-group"><label>Sortie (€)</label><input type="number" id="euroSortie" step="0.01" min="0" placeholder="0,00"></div>
+                    <div class="form-group"><label>Personne</label><input type="text" id="euroPersonne" required placeholder="Nom"></div>
+                    <div class="form-group"><label>Taux de change</label><input type="number" id="euroTaux" step="0.01" placeholder="Optionnel"></div>
                 </div>
-                <div class="form-group">
-                    <label>Remarque</label>
-                    <textarea id="editRemarque"></textarea>
-                </div>
-                <div>
-                    <button type="submit" class="btn">Enregistrer</button>
-                    <button type="button" class="btn-secondary" onclick="closeEditModal()">Annuler</button>
-                </div>
+                <div class="form-group"><label>Remarque</label><textarea id="euroRemarque" placeholder="Détails..."></textarea></div>
+                <button type="submit" class="btn btn-primary" style="margin-top:16px;">+ Ajouter transaction</button>
             </form>
         </div>
+
+        <div class="table-section">
+            <div class="table-header"><h2>Historique Euro</h2><span class="table-info" id="euroTableInfo">— lignes</span></div>
+            <div id="euroLoading" class="loading">Chargement...</div>
+            <div class="table-scroll">
+                <table><thead><tr><th>Date</th><th>Opération</th><th>Entrée</th><th>Sortie</th><th>Solde</th><th>Personne</th><th>Remarque</th><th>Actions</th></tr></thead><tbody id="euroTableBody"></tbody></table>
+            </div>
+        </div>
     </div>
 
-    <script>
-        // =================== CONFIGURATION FIREBASE ===================
-        const firebaseConfig = {
-            apiKey: "AIzaSyBOze4uwJHuRd-UVOcLemRn1AFxA93UBcQ",
-            authDomain: "gestion-change.firebaseapp.com",
-            projectId: "gestion-change",
-            storageBucket: "gestion-change.firebasestorage.app",
-            messagingSenderId: "773358376046",
-            appId: "1:773358376046:web:c4de3857d99b6c9608027f",
-            databaseURL: "https://gestion-change-default-rtdb.europe-west1.firebasedatabase.app/"
-        };
+    <!-- ===== CFA TAB ===== -->
+    <div id="cfaTab" class="tab-content">
+        <div class="filters-bar">
+            <div class="filter-group"><label>Recherche</label><input type="text" id="cfaSearch" placeholder="Personne, remarque..." oninput="applyFilters('cfa')"></div>
+            <div class="filter-group"><label>Opération</label><select id="cfaFilterOp" onchange="applyFilters('cfa')"><option value="">Toutes</option><option value="Entrée">Entrées</option><option value="Sortie">Sorties</option></select></div>
+            <div class="filter-group"><label>Date début</label><input type="date" id="cfaFilterDateFrom" onchange="applyFilters('cfa')"></div>
+            <div class="filter-group"><label>Date fin</label><input type="date" id="cfaFilterDateTo" onchange="applyFilters('cfa')"></div>
+            <button class="filter-reset" onclick="resetFilters('cfa')">Réinitialiser</button>
+        </div>
 
-        // Initialisation Firebase
-        firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
+        <div class="form-section">
+            <h2>➕ Nouvelle transaction CFA</h2>
+            <form id="cfaForm">
+                <div class="form-grid">
+                    <div class="form-group"><label>Date</label><input type="date" id="cfaDate" required></div>
+                    <div class="form-group"><label>Opération</label><select id="cfaOperation" required><option value="Entrée">Entrée</option><option value="Sortie">Sortie</option></select></div>
+                    <div class="form-group"><label>Entrée (CFA)</label><input type="number" id="cfaEntree" step="1" min="0" placeholder="0"></div>
+                    <div class="form-group"><label>Sortie (CFA)</label><input type="number" id="cfaSortie" step="1" min="0" placeholder="0"></div>
+                    <div class="form-group"><label>Personne</label><input type="text" id="cfaPersonne" required placeholder="Nom"></div>
+                    <div class="form-group"><label>Taux de change</label><input type="number" id="cfaTaux" step="0.01" placeholder="Optionnel"></div>
+                </div>
+                <div class="form-group"><label>Remarque</label><textarea id="cfaRemarque" placeholder="Détails..."></textarea></div>
+                <button type="submit" class="btn btn-primary" style="margin-top:16px;">+ Ajouter transaction</button>
+            </form>
+        </div>
 
-        // =================== DONNÉES ===================
-        let euroTransactions = [];
-        let cfaTransactions = [];
-        let isSyncing = false;
-        let lastSyncTime = null;
+        <div class="table-section">
+            <div class="table-header"><h2>Historique CFA</h2><span class="table-info" id="cfaTableInfo">— lignes</span></div>
+            <div id="cfaLoading" class="loading">Chargement...</div>
+            <div class="table-scroll">
+                <table><thead><tr><th>Date</th><th>Opération</th><th>Entrée</th><th>Sortie</th><th>Solde</th><th>Personne</th><th>Remarque</th><th>Actions</th></tr></thead><tbody id="cfaTableBody"></tbody></table>
+            </div>
+        </div>
+    </div>
 
-        const historicalData = {
-            euro: [
-                {date: '2024-01-01', operation: 'Sortie', entree: 0, sortie: 0, personne: 'Youssouf / Abakar', remarque: ''},
-                {date: '2024-01-02', operation: 'Entrée', entree: 3000, sortie: 0, personne: 'Issa', remarque: ''},
-                {date: '2024-01-03', operation: 'Sortie', entree: 0, sortie: 23, personne: 'Issa', remarque: 'Différence taux 670 et 675'},
-                {date: '2024-01-04', operation: 'Sortie', entree: 0, sortie: 1482, personne: 'Ibni', remarque: ''},
-                {date: '2024-01-05', operation: 'Sortie', entree: 0, sortie: 72, personne: 'Ibni', remarque: ''},
-                {date: '2024-01-06', operation: 'Entrée', entree: 148, sortie: 0, personne: 'Issa', remarque: ''},
-                {date: '2024-01-07', operation: 'Entrée', entree: 1874, sortie: 0, personne: 'Issa', remarque: ''},
-                {date: '2024-01-08', operation: 'Entrée', entree: 74, sortie: 0, personne: 'Issa', remarque: 'Médicament'},
-                {date: '2024-01-09', operation: 'Sortie', entree: 0, sortie: 512, personne: 'Berdei', remarque: 'Médicament'},
-                {date: '2024-01-10', operation: 'Sortie', entree: 0, sortie: 701, personne: 'Soulou', remarque: 'Médicament'},
-                {date: '2024-01-11', operation: 'Sortie', entree: 0, sortie: 47, personne: 'Youssouf', remarque: 'Part Youssouf pharma, Bénéfice médicament 512'},
-                {date: '2024-01-12', operation: 'Entrée', entree: 224, sortie: 0, personne: 'Moi', remarque: '100000/3 = 33 333,333'},
-                {date: '2024-01-13', operation: 'Entrée', entree: 74, sortie: 0, personne: 'Issa', remarque: '33333/700 = 47,619'},
-                {date: '2024-01-14', operation: 'Entrée', entree: 3000, sortie: 0, personne: 'Faris', remarque: 'SOLDE FINAL'},
-                {date: '2024-01-15', operation: 'Sortie', entree: 0, sortie: 2421.4, personne: 'Youssouf pharmacie', remarque: 'Valise commande - Total Medica 2090 + Topicrem 112,5 + Getzner 205 + Valise 13,90 = 2421,4'},
-                {date: '2024-01-16', operation: 'Entrée', entree: 100, sortie: 0, personne: 'Issa', remarque: ''},
-                {date: '2024-01-17', operation: 'Sortie', entree: 0, sortie: 2200, personne: 'Retrait', remarque: 'Retrait espèce'},
-                {date: '2024-01-18', operation: 'Entrée', entree: 3315, sortie: 0, personne: 'Issa', remarque: '4000$ Issa'},
-                {date: '2024-01-19', operation: 'Sortie', entree: 0, sortie: 1000, personne: 'Youssouf', remarque: 'Youssouf'},
-                {date: '2024-01-20', operation: 'Entrée', entree: 3000, sortie: 0, personne: 'Issa', remarque: ''},
-                {date: '2024-01-21', operation: 'Entrée', entree: 794, sortie: 0, personne: 'Ms Ibni', remarque: ''},
-                {date: '2024-01-22', operation: 'Entrée', entree: 300, sortie: 0, personne: 'Ms ibni', remarque: ''},
-                {date: '2024-01-23', operation: 'Entrée', entree: 100, sortie: 0, personne: 'Issa', remarque: ''},
-                {date: '2024-01-24', operation: 'Sortie', entree: 0, sortie: 70, personne: 'Issa', remarque: 'Bénéfice Issa sur 4000$ et 3000€'}
-            ],
-            cfa: [
-                {date: '2024-01-01', operation: 'Entrée', entree: 4865000, sortie: 0, personne: 'Capital initial', remarque: ''},
-                {date: '2024-01-02', operation: 'Sortie', entree: 0, sortie: 400000, personne: 'You', remarque: ''},
-                {date: '2024-01-03', operation: 'Sortie', entree: 0, sortie: 350000, personne: 'Abakar Doungous', remarque: ''},
-                {date: '2024-01-04', operation: 'Sortie', entree: 0, sortie: 2020000, personne: 'Issa', remarque: ''},
-                {date: '2024-01-05', operation: 'Sortie', entree: 0, sortie: 100000, personne: 'Moi', remarque: ''},
-                {date: '2024-01-06', operation: 'Entrée', entree: 1030000, sortie: 0, personne: 'Ibni Alhadj', remarque: ''},
-                {date: '2024-01-07', operation: 'Sortie', entree: 0, sortie: 10000, personne: 'Abbas', remarque: 'Retrait Abbas'},
-                {date: '2024-01-08', operation: 'Entrée', entree: 50000, sortie: 0, personne: 'Ibni', remarque: ''},
-                {date: '2024-01-09', operation: 'Sortie', entree: 0, sortie: 100000, personne: 'Issa', remarque: ''},
-                {date: '2024-01-10', operation: 'Sortie', entree: 0, sortie: 1265000, personne: 'Issa', remarque: ''},
-                {date: '2024-01-11', operation: 'Sortie', entree: 0, sortie: 50000, personne: 'Issa', remarque: ''},
-                {date: '2024-01-12', operation: 'Sortie', entree: 0, sortie: 10000, personne: 'Abbas', remarque: 'Retrait Abbas'},
-                {date: '2024-01-13', operation: 'Sortie', entree: 0, sortie: 50000, personne: 'Moi', remarque: ''},
-                {date: '2024-01-14', operation: 'Entrée', entree: 460000, sortie: 0, personne: 'Youssouf pharmacie', remarque: ''},
-                {date: '2024-01-15', operation: 'Sortie', entree: 0, sortie: 50000, personne: 'Issa', remarque: ''},
-                {date: '2024-01-16', operation: 'Sortie', entree: 0, sortie: 10000, personne: 'Abbas', remarque: 'Retrait Abbas'},
-                {date: '2024-01-17', operation: 'Sortie', entree: 0, sortie: 67500, personne: 'Issa', remarque: ''},
-                {date: '2024-01-18', operation: 'Sortie', entree: 0, sortie: 532000, personne: 'Ms Ibni', remarque: ''},
-                {date: '2024-01-19', operation: 'Sortie', entree: 0, sortie: 67000, personne: 'Issa', remarque: ''}
-            ]
-        };
+    <!-- ===== STATS TAB ===== -->
+    <div id="statsTab" class="tab-content">
+        <div class="month-select-row">
+            <label>Filtrer par mois :</label>
+            <select id="statsMonthSelect" onchange="renderStats()">
+                <option value="">Tous les mois</option>
+            </select>
+            <select id="statsTypeSelect" onchange="renderStats()">
+                <option value="euro">Euro (€)</option>
+                <option value="cfa">CFA (FCFA)</option>
+            </select>
+        </div>
+        <div class="stats-grid" id="statsCards"></div>
+        <div class="monthly-table-wrap">
+            <h2>Détail par mois</h2>
+            <div class="table-scroll"><table id="monthlyTable"><thead><tr><th>Mois</th><th>Nb transactions</th><th>Total entrées</th><th>Total sorties</th><th>Variation nette</th></tr></thead><tbody id="monthlyTableBody"></tbody></table></div>
+        </div>
+        <div class="monthly-table-wrap">
+            <h2>Top personnes</h2>
+            <div class="table-scroll"><table><thead><tr><th>Personne</th><th>Nb transactions</th><th>Total entrées</th><th>Total sorties</th><th>Balance nette</th></tr></thead><tbody id="personnesTableBody"></tbody></table></div>
+        </div>
+    </div>
 
-        // =================== FONCTIONS FIREBASE ===================
-        function updateConnectionStatus(status, text) {
-            const statusEl = document.getElementById('connectionStatus');
-            statusEl.textContent = text;
-            statusEl.className = 'connection-status ' + status;
-        }
+    <!-- ===== NOTES TAB ===== -->
+    <div id="notesTab" class="tab-content">
+        <div class="notes-grid">
+            <div class="notes-list-panel">
+                <div class="notes-list-header"><h2>📓 Notes</h2><button class="btn btn-primary" style="padding:6px 14px;" onclick="newNote()">+ Nouvelle</button></div>
+                <div class="notes-search"><input type="text" placeholder="Rechercher une note..." id="notesSearch" oninput="renderNotesList()"></div>
+                <div class="notes-list" id="notesList"><div class="note-empty-list">Aucune note</div></div>
+            </div>
+            <div class="notes-editor-panel">
+                <div class="note-no-selection" id="noteNoSelection"><div class="note-no-selection-icon">📝</div><p>Sélectionnez une note ou créez-en une nouvelle</p></div>
+                <div id="noteEditor" style="display:none; flex-direction:column; flex:1;">
+                    <div class="editor-toolbar">
+                        <div class="editor-toolbar-left"><input type="text" class="note-title-input" id="noteTitleInput" placeholder="Titre de la note" oninput="autoSaveNote()"></div>
+                        <button class="delete-btn" onclick="deleteCurrentNote()">Supprimer</button>
+                    </div>
+                    <textarea class="note-content-area" id="noteContentArea" placeholder="Écrivez votre note ici..." oninput="autoSaveNote()"></textarea>
+                    <div class="editor-status"><span id="noteEditorDate">—</span><span id="noteEditorStatus">—</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
-        function saveToFirebase() {
-            isSyncing = true;
-            updateConnectionStatus('syncing', 'Synchronisation...');
-            
-            const updates = {};
-            updates['/euroTransactions'] = euroTransactions;
-            updates['/cfaTransactions'] = cfaTransactions;
-            
-            database.ref().update(updates)
-                .then(() => {
-                    lastSyncTime = new Date();
-                    updateConnectionStatus('online', `✓ Synchronisé ${lastSyncTime.toLocaleTimeString()}`);
-                    isSyncing = false;
-                })
-                .catch(error => {
-                    console.error('Erreur Firebase:', error);
-                    updateConnectionStatus('offline', '✗ Erreur de synchronisation');
-                    isSyncing = false;
-                });
-        }
+<!-- EDIT MODAL -->
+<div class="modal-overlay" id="editModal">
+    <div class="modal">
+        <div class="modal-header"><h2>Modifier la transaction</h2><button class="close-btn" onclick="closeEditModal()">×</button></div>
+        <form id="editForm">
+            <input type="hidden" id="editType"><input type="hidden" id="editIndex">
+            <div class="form-grid">
+                <div class="form-group"><label>Date</label><input type="date" id="editDate" required></div>
+                <div class="form-group"><label>Opération</label><select id="editOperation" required><option value="Entrée">Entrée</option><option value="Sortie">Sortie</option></select></div>
+                <div class="form-group"><label>Entrée</label><input type="number" id="editEntree" step="0.01" min="0"></div>
+                <div class="form-group"><label>Sortie</label><input type="number" id="editSortie" step="0.01" min="0"></div>
+                <div class="form-group"><label>Personne</label><input type="text" id="editPersonne" required></div>
+                <div class="form-group"><label>Taux</label><input type="number" id="editTaux" step="0.01" placeholder="Optionnel"></div>
+            </div>
+            <div class="form-group"><label>Remarque</label><textarea id="editRemarque"></textarea></div>
+            <div style="display:flex; gap:12px; margin-top:20px;"><button type="submit" class="btn btn-primary" style="flex:1;">Enregistrer</button><button type="button" class="btn" onclick="closeEditModal()" style="flex:1;">Annuler</button></div>
+        </form>
+    </div>
+</div>
 
-        function listenToFirebase() {
-            updateConnectionStatus('syncing', 'Connexion à la base de données...');
-            
-            // Écouter les transactions Euro
-            database.ref('euroTransactions').on('value', (snapshot) => {
-                if (snapshot.exists()) {
-                    euroTransactions = snapshot.val();
-                    document.getElementById('euroLoading').style.display = 'none';
-                    updateDisplay();
-                }
-            }, (error) => {
-                console.error('Erreur Euro:', error);
-                updateConnectionStatus('offline', '✗ Erreur de connexion');
-            });
-            
-            // Écouter les transactions CFA
-            database.ref('cfaTransactions').on('value', (snapshot) => {
-                if (snapshot.exists()) {
-                    cfaTransactions = snapshot.val();
-                    document.getElementById('cfaLoading').style.display = 'none';
-                    updateDisplay();
-                }
-            }, (error) => {
-                console.error('Erreur CFA:', error);
-                updateConnectionStatus('offline', '✗ Erreur de connexion');
-            });
-            
-            // Écouter l'état de connexion
-            database.ref('.info/connected').on('value', (snapshot) => {
-                if (snapshot.val() === true) {
-                    updateConnectionStatus('online', '✓ Connecté en temps réel');
-                } else {
-                    updateConnectionStatus('offline', '✗ Hors ligne');
-                }
-            });
-        }
+<div class="toast" id="toast"></div>
 
-        function checkFirebaseData() {
-            database.ref('euroTransactions').once('value').then((snapshot) => {
-                if (!snapshot.exists()) {
-                    // Si la base de données est vide, charger les données historiques
-                    loadHistoricalData();
-                } else {
-                    updateDisplay();
-                }
-            });
-        }
+<script>
+// =================== FIREBASE ===================
+const firebaseConfig = {
+    apiKey: "AIzaSyBOze4uwJHuRd-UVOcLemRn1AFxA93UBcQ",
+    authDomain: "gestion-change.firebaseapp.com",
+    projectId: "gestion-change",
+    storageBucket: "gestion-change.firebasestorage.app",
+    messagingSenderId: "773358376046",
+    appId: "1:773358376046:web:c4de3857d99b6c9608027f",
+    databaseURL: "https://gestion-change-default-rtdb.europe-west1.firebasedatabase.app/"
+};
+firebase.initializeApp(firebaseConfig);
+const database = firebase.database();
 
-        // =================== FONCTIONS PRINCIPALES ===================
-        function loadHistoricalData() {
-            euroTransactions = [...historicalData.euro];
-            cfaTransactions = [...historicalData.cfa];
-            saveToFirebase();
-        }
+let euroTransactions = [], cfaTransactions = [], notes = [];
+let currentNoteId = null, autoSaveTimer = null, lastSyncTime = null;
 
-        function exportData() {
-            const data = {
-                euroTransactions,
-                cfaTransactions,
-                exportDate: new Date().toISOString(),
-                lastSync: lastSyncTime ? lastSyncTime.toISOString() : null
-            };
-            
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `transactions-change-${new Date().toISOString().split('T')[0]}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            
-            alert('✓ Données exportées avec succès !');
-        }
+function showToast(msg, type='') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show ' + type;
+    setTimeout(() => t.className = 'toast', 2500);
+}
 
-        function importData(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const data = JSON.parse(e.target.result);
-                    if (data.euroTransactions && data.cfaTransactions) {
-                        if (confirm('⚠️ Voulez-vous remplacer toutes les données actuelles par les données importées ? Cette action sera synchronisée avec tous les utilisateurs.')) {
-                            euroTransactions = data.euroTransactions;
-                            cfaTransactions = data.cfaTransactions;
-                            saveToFirebase();
-                            alert('✓ Données importées et synchronisées !');
-                        }
-                    } else {
-                        alert('❌ Fichier invalide. Assurez-vous d\'importer un fichier exporté depuis cette application.');
-                    }
-                } catch (error) {
-                    alert('❌ Erreur lors de l\'importation : ' + error.message);
-                }
-            };
-            reader.readAsText(file);
-            event.target.value = '';
-        }
+function updateConnectionStatus(status, text) {
+    const el = document.getElementById('connectionStatus');
+    el.textContent = text;
+    el.className = 'connection-status ' + status;
+}
 
-        // Fonction resetToHistorical SUPPRIMÉE
+function saveToFirebase() {
+    updateConnectionStatus('syncing', 'Sync...');
+    database.ref().update({ '/euroTransactions': euroTransactions, '/cfaTransactions': cfaTransactions })
+        .then(() => { lastSyncTime = new Date(); updateConnectionStatus('online', '✓ ' + lastSyncTime.toLocaleTimeString()); })
+        .catch(err => { console.error(err); updateConnectionStatus('offline', '✗ Erreur sync'); });
+}
+function saveNotesToFirebase() { database.ref('/notes').set(notes).catch(err => console.error(err)); }
 
-        function switchTab(tab) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            
-            if (tab === 'euro') {
-                document.querySelector('.tab:first-child').classList.add('active');
-                document.getElementById('euroTab').classList.add('active');
-            } else {
-                document.querySelector('.tab:last-child').classList.add('active');
-                document.getElementById('cfaTab').classList.add('active');
-            }
-        }
+function listenToFirebase() {
+    updateConnectionStatus('syncing', 'Connexion...');
+    database.ref('euroTransactions').on('value', snap => { if(snap.exists()) euroTransactions = snap.val() || []; document.getElementById('euroLoading').style.display = 'none'; updateDisplay(); });
+    database.ref('cfaTransactions').on('value', snap => { if(snap.exists()) cfaTransactions = snap.val() || []; document.getElementById('cfaLoading').style.display = 'none'; updateDisplay(); });
+    database.ref('notes').on('value', snap => { notes = snap.exists() ? snap.val() : []; renderNotesList(); document.getElementById('totalNotes').textContent = notes.length; });
+    database.ref('.info/connected').on('value', snap => { updateConnectionStatus(snap.val() === true ? 'online' : 'offline', snap.val() === true ? '✓ Connecté' : '✗ Hors ligne'); });
+}
 
-        function calculateSolde(transactions) {
-            let solde = 0;
-            return transactions.map(t => {
-                solde += (t.entree - t.sortie);
-                return {...t, solde};
-            });
-        }
+const historicalData = {
+    euro: [{date:'2024-01-01',operation:'Sortie',entree:0,sortie:0,personne:'Youssouf / Abakar',remarque:''},{date:'2024-01-02',operation:'Entrée',entree:3000,sortie:0,personne:'Issa',remarque:''},{date:'2024-01-03',operation:'Sortie',entree:0,sortie:23,personne:'Issa',remarque:'Différence taux 670 et 675'},{date:'2024-01-04',operation:'Sortie',entree:0,sortie:1482,personne:'Ibni',remarque:''},{date:'2024-01-05',operation:'Sortie',entree:0,sortie:72,personne:'Ibni',remarque:''},{date:'2024-01-06',operation:'Entrée',entree:148,sortie:0,personne:'Issa',remarque:''},{date:'2024-01-07',operation:'Entrée',entree:1874,sortie:0,personne:'Issa',remarque:''},{date:'2024-01-08',operation:'Entrée',entree:74,sortie:0,personne:'Issa',remarque:'Médicament'},{date:'2024-01-09',operation:'Sortie',entree:0,sortie:512,personne:'Berdei',remarque:'Médicament'},{date:'2024-01-10',operation:'Sortie',entree:0,sortie:701,personne:'Soulou',remarque:'Médicament'},{date:'2024-01-11',operation:'Sortie',entree:0,sortie:47,personne:'Youssouf',remarque:'Part Youssouf pharma'},{date:'2024-01-12',operation:'Entrée',entree:224,sortie:0,personne:'Moi',remarque:'100000/3 = 33 333,333'},{date:'2024-01-13',operation:'Entrée',entree:74,sortie:0,personne:'Issa',remarque:'33333/700 = 47,619'},{date:'2024-01-14',operation:'Entrée',entree:3000,sortie:0,personne:'Faris',remarque:'SOLDE FINAL'},{date:'2024-01-15',operation:'Sortie',entree:0,sortie:2421.4,personne:'Youssouf pharmacie',remarque:'Valise commande'},{date:'2024-01-16',operation:'Entrée',entree:100,sortie:0,personne:'Issa',remarque:''},{date:'2024-01-17',operation:'Sortie',entree:0,sortie:2200,personne:'Retrait',remarque:'Retrait espèce'},{date:'2024-01-18',operation:'Entrée',entree:3315,sortie:0,personne:'Issa',remarque:'4000$ Issa'},{date:'2024-01-19',operation:'Sortie',entree:0,sortie:1000,personne:'Youssouf',remarque:'Youssouf'},{date:'2024-01-20',operation:'Entrée',entree:3000,sortie:0,personne:'Issa',remarque:''},{date:'2024-01-21',operation:'Entrée',entree:794,sortie:0,personne:'Ms Ibni',remarque:''},{date:'2024-01-22',operation:'Entrée',entree:300,sortie:0,personne:'Ms ibni',remarque:''},{date:'2024-01-23',operation:'Entrée',entree:100,sortie:0,personne:'Issa',remarque:''},{date:'2024-01-24',operation:'Sortie',entree:0,sortie:70,personne:'Issa',remarque:'Bénéfice Issa'}],
+    cfa: [{date:'2024-01-01',operation:'Entrée',entree:4865000,sortie:0,personne:'Capital initial',remarque:''},{date:'2024-01-02',operation:'Sortie',entree:0,sortie:400000,personne:'You',remarque:''},{date:'2024-01-03',operation:'Sortie',entree:0,sortie:350000,personne:'Abakar Doungous',remarque:''},{date:'2024-01-04',operation:'Sortie',entree:0,sortie:2020000,personne:'Issa',remarque:''},{date:'2024-01-05',operation:'Sortie',entree:0,sortie:100000,personne:'Moi',remarque:''},{date:'2024-01-06',operation:'Entrée',entree:1030000,sortie:0,personne:'Ibni Alhadj',remarque:''},{date:'2024-01-07',operation:'Sortie',entree:0,sortie:10000,personne:'Abbas',remarque:'Retrait Abbas'},{date:'2024-01-08',operation:'Entrée',entree:50000,sortie:0,personne:'Ibni',remarque:''},{date:'2024-01-09',operation:'Sortie',entree:0,sortie:100000,personne:'Issa',remarque:''},{date:'2024-01-10',operation:'Sortie',entree:0,sortie:1265000,personne:'Issa',remarque:''},{date:'2024-01-11',operation:'Sortie',entree:0,sortie:50000,personne:'Issa',remarque:''},{date:'2024-01-12',operation:'Sortie',entree:0,sortie:10000,personne:'Abbas',remarque:'Retrait Abbas'},{date:'2024-01-13',operation:'Sortie',entree:0,sortie:50000,personne:'Moi',remarque:''},{date:'2024-01-14',operation:'Entrée',entree:460000,sortie:0,personne:'Youssouf pharmacie',remarque:''},{date:'2024-01-15',operation:'Sortie',entree:0,sortie:50000,personne:'Issa',remarque:''},{date:'2024-01-16',operation:'Sortie',entree:0,sortie:10000,personne:'Abbas',remarque:'Retrait Abbas'},{date:'2024-01-17',operation:'Sortie',entree:0,sortie:67500,personne:'Issa',remarque:''},{date:'2024-01-18',operation:'Sortie',entree:0,sortie:532000,personne:'Ms Ibni',remarque:''},{date:'2024-01-19',operation:'Sortie',entree:0,sortie:67000,personne:'Issa',remarque:''}]
+};
+function loadHistoricalData() { euroTransactions = [...historicalData.euro]; cfaTransactions = [...historicalData.cfa]; saveToFirebase(); }
 
-        function updateDisplay() {
-            const euroWithSolde = calculateSolde(euroTransactions);
-            const cfaWithSolde = calculateSolde(cfaTransactions);
+function switchTab(tab) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    const tabs = ['euro','cfa','stats','notes'];
+    const idx = tabs.indexOf(tab);
+    document.querySelectorAll('.tab')[idx].classList.add('active');
+    document.getElementById(tab + 'Tab').classList.add('active');
+    if (tab === 'stats') renderStats();
+}
 
-            const euroSolde = euroWithSolde.length > 0 ? euroWithSolde[euroWithSolde.length - 1].solde : 0;
-            const cfaSolde = cfaWithSolde.length > 0 ? cfaWithSolde[cfaWithSolde.length - 1].solde : 0;
+function getFilters(type) { return { search: document.getElementById(type+'Search').value.toLowerCase(), op: document.getElementById(type+'FilterOp').value, from: document.getElementById(type+'FilterDateFrom').value, to: document.getElementById(type+'FilterDateTo').value }; }
+function filterTransactions(transactions, filters) { return transactions.filter(t => { const q = filters.search; if(q && !t.personne.toLowerCase().includes(q) && !(t.remarque||'').toLowerCase().includes(q)) return false; if(filters.op && t.operation !== filters.op) return false; if(filters.from && t.date < filters.from) return false; if(filters.to && t.date > filters.to) return false; return true; }); }
+function calculateSolde(transactions) { let solde = 0; return transactions.map(t => { solde += (t.entree - t.sortie); return { ...t, solde }; }); }
+function applyFilters(type) { const all = type === 'euro' ? euroTransactions : cfaTransactions; const withSolde = calculateSolde(all); const filters = getFilters(type); displayTransactions(type, filterTransactions(withSolde, filters)); }
+function resetFilters(type) { document.getElementById(type+'Search').value = ''; document.getElementById(type+'FilterOp').value = ''; document.getElementById(type+'FilterDateFrom').value = ''; document.getElementById(type+'FilterDateTo').value = ''; applyFilters(type); }
 
-            document.getElementById('soldeEuro').textContent = euroSolde.toFixed(2) + ' €';
-            document.getElementById('soldeCFA').textContent = cfaSolde.toLocaleString('fr-FR') + ' CFA';
-            document.getElementById('totalTransactions').textContent = euroTransactions.length + cfaTransactions.length;
+function updateDisplay() {
+    const euroSolde = euroTransactions.reduce((a,b)=>a+(b.entree-b.sortie),0);
+    const cfaSolde = cfaTransactions.reduce((a,b)=>a+(b.entree-b.sortie),0);
+    document.getElementById('soldeEuro').textContent = euroSolde.toFixed(2) + ' €';
+    document.getElementById('soldeCFA').textContent = cfaSolde.toLocaleString('fr-FR') + ' CFA';
+    document.getElementById('totalTransactions').textContent = euroTransactions.length + cfaTransactions.length;
+    applyFilters('euro'); applyFilters('cfa');
+    const allDates = [...euroTransactions, ...cfaTransactions].map(t => t.date.substring(0,7));
+    const months = [...new Set(allDates)].sort().reverse();
+    const select = document.getElementById('statsMonthSelect');
+    const current = select.value;
+    select.innerHTML = '<option value="">Tous les mois</option>';
+    months.forEach(m => { const [y, mo] = m.split('-'); select.innerHTML += `<option value="${m}" ${m===current?'selected':''}>${new Date(y, mo-1, 1).toLocaleDateString('fr-FR', {month:'long', year:'numeric'})}</option>`; });
+}
 
-            displayTransactions('euro', euroWithSolde);
-            displayTransactions('cfa', cfaWithSolde);
-            
-            // Sauvegarde locale pour le mode hors ligne
-            try {
-                localStorage.setItem('lastEuroTransactions', JSON.stringify(euroTransactions));
-                localStorage.setItem('lastCfaTransactions', JSON.stringify(cfaTransactions));
-            } catch (e) {
-                console.log('LocalStorage non disponible');
-            }
-        }
+function displayTransactions(type, transactions) {
+    const tbody = document.getElementById(type + 'TableBody');
+    const info = document.getElementById(type + 'TableInfo');
+    tbody.innerHTML = '';
+    info.textContent = transactions.length + ' ligne' + (transactions.length > 1 ? 's' : '');
+    if(transactions.length === 0) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Aucune transaction trouvée</td></tr>'; return; }
+    const isEuro = type === 'euro';
+    const allT = isEuro ? euroTransactions : cfaTransactions;
+    transactions.forEach(t => {
+        const realIndex = allT.findIndex(x => x.date === t.date && x.personne === t.personne && x.entree === t.entree && x.sortie === t.sortie && x.operation === t.operation);
+        const row = tbody.insertRow();
+        const fmtNum = (n) => isEuro ? n.toFixed(2) : n.toLocaleString('fr-FR');
+        row.innerHTML = `<td>${t.date}</td><td><span class="badge-op badge-${t.operation === 'Entrée' ? 'entree' : 'sortie'}">${t.operation}</span></td><td class="cell-entree">${t.entree > 0 ? fmtNum(t.entree) : '—'}</td><td class="cell-sortie">${t.sortie > 0 ? fmtNum(t.sortie) : '—'}</td><td class="cell-solde ${t.solde>=0?'positive':'negative'}">${fmtNum(t.solde)}</td><td>${t.personne}</td><td style="max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${t.remarque||''}">${t.remarque || '—'}</td><td><button class="edit-btn" onclick="editTransaction('${type}',${realIndex})">Modifier</button><button class="delete-btn" onclick="deleteTransaction('${type}',${realIndex})">Suppr.</button></td>`;
+    });
+}
 
-        function displayTransactions(type, transactions) {
-            const tbody = document.getElementById(type + 'TableBody');
-            tbody.innerHTML = '';
+function editTransaction(type, index) {
+    const t = type === 'euro' ? euroTransactions[index] : cfaTransactions[index];
+    document.getElementById('editType').value = type; document.getElementById('editIndex').value = index;
+    document.getElementById('editDate').value = t.date; document.getElementById('editOperation').value = t.operation;
+    document.getElementById('editEntree').value = t.entree || ''; document.getElementById('editSortie').value = t.sortie || '';
+    document.getElementById('editPersonne').value = t.personne; document.getElementById('editTaux').value = t.taux || '';
+    document.getElementById('editRemarque').value = t.remarque || '';
+    document.getElementById('editModal').classList.add('active');
+}
+function closeEditModal() { document.getElementById('editModal').classList.remove('active'); document.getElementById('editForm').reset(); }
+document.getElementById('editForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const type = document.getElementById('editType').value, index = parseInt(document.getElementById('editIndex').value);
+    const updated = { date: document.getElementById('editDate').value, operation: document.getElementById('editOperation').value, entree: parseFloat(document.getElementById('editEntree').value)||0, sortie: parseFloat(document.getElementById('editSortie').value)||0, personne: document.getElementById('editPersonne').value, remarque: document.getElementById('editRemarque').value, taux: parseFloat(document.getElementById('editTaux').value)||null };
+    if(type === 'euro') euroTransactions[index] = updated; else cfaTransactions[index] = updated;
+    saveToFirebase(); updateDisplay(); closeEditModal(); showToast('Transaction modifiée', 'success');
+});
+function deleteTransaction(type, index) {
+    if(confirm('Supprimer cette transaction ?')) { if(type === 'euro') euroTransactions.splice(index,1); else cfaTransactions.splice(index,1); saveToFirebase(); updateDisplay(); showToast('Transaction supprimée'); }
+}
 
-            transactions.forEach((t, index) => {
-                const row = tbody.insertRow();
-                row.innerHTML = `
-                    <td>${t.date}</td>
-                    <td>${t.operation}</td>
-                    <td class="entree">${t.entree > 0 ? (type === 'euro' ? t.entree.toFixed(2) : t.entree.toLocaleString('fr-FR')) : '-'}</td>
-                    <td class="sortie">${t.sortie > 0 ? (type === 'euro' ? t.sortie.toFixed(2) : t.sortie.toLocaleString('fr-FR')) : '-'}</td>
-                    <td><strong>${type === 'euro' ? t.solde.toFixed(2) : t.solde.toLocaleString('fr-FR')}</strong></td>
-                    <td>${t.personne}</td>
-                    <td>${t.remarque || '-'}</td>
-                    <td>
-                        <button class="edit-btn" onclick="editTransaction('${type}', ${index})">Modifier</button>
-                        <button class="delete-btn" onclick="deleteTransaction('${type}', ${index})">Supprimer</button>
-                    </td>
-                `;
-            });
-        }
+document.getElementById('euroForm').addEventListener('submit', function(e) { e.preventDefault(); euroTransactions.push({ date: document.getElementById('euroDate').value, operation: document.getElementById('euroOperation').value, entree: parseFloat(document.getElementById('euroEntree').value)||0, sortie: parseFloat(document.getElementById('euroSortie').value)||0, personne: document.getElementById('euroPersonne').value, remarque: document.getElementById('euroRemarque').value, taux: parseFloat(document.getElementById('euroTaux').value)||null }); saveToFirebase(); updateDisplay(); this.reset(); document.getElementById('euroDate').value = new Date().toISOString().split('T')[0]; showToast('Transaction ajoutée', 'success'); });
+document.getElementById('cfaForm').addEventListener('submit', function(e) { e.preventDefault(); cfaTransactions.push({ date: document.getElementById('cfaDate').value, operation: document.getElementById('cfaOperation').value, entree: parseFloat(document.getElementById('cfaEntree').value)||0, sortie: parseFloat(document.getElementById('cfaSortie').value)||0, personne: document.getElementById('cfaPersonne').value, remarque: document.getElementById('cfaRemarque').value, taux: parseFloat(document.getElementById('cfaTaux').value)||null }); saveToFirebase(); updateDisplay(); this.reset(); document.getElementById('cfaDate').value = new Date().toISOString().split('T')[0]; showToast('Transaction ajoutée', 'success'); });
 
-        function editTransaction(type, index) {
-            const transaction = type === 'euro' ? euroTransactions[index] : cfaTransactions[index];
-            
-            document.getElementById('editType').value = type;
-            document.getElementById('editIndex').value = index;
-            document.getElementById('editDate').value = transaction.date;
-            document.getElementById('editOperation').value = transaction.operation;
-            document.getElementById('editEntree').value = transaction.entree || '';
-            document.getElementById('editSortie').value = transaction.sortie || '';
-            document.getElementById('editPersonne').value = transaction.personne;
-            document.getElementById('editTaux').value = transaction.taux || '';
-            document.getElementById('editRemarque').value = transaction.remarque || '';
-            
-            document.getElementById('editModal').classList.add('active');
-        }
+function renderStats() {
+    const monthFilter = document.getElementById('statsMonthSelect').value, typeFilter = document.getElementById('statsTypeSelect').value;
+    const transactions = typeFilter === 'euro' ? euroTransactions : cfaTransactions, isEuro = typeFilter === 'euro';
+    const fmt = (n) => isEuro ? n.toFixed(2) + ' €' : n.toLocaleString('fr-FR') + ' CFA';
+    const filtered = monthFilter ? transactions.filter(t => t.date.startsWith(monthFilter)) : transactions;
+    const totalEntrees = filtered.reduce((s,t)=>s+t.entree,0), totalSorties = filtered.reduce((s,t)=>s+t.sortie,0), variation = totalEntrees - totalSorties;
+    document.getElementById('statsCards').innerHTML = `<div class="stat-card stat-green"><div class="stat-label">Total entrées</div><div class="stat-value">${fmt(totalEntrees)}</div><div class="stat-sub">${filtered.filter(t=>t.entree>0).length} opérations</div></div><div class="stat-card stat-red"><div class="stat-label">Total sorties</div><div class="stat-value">${fmt(totalSorties)}</div><div class="stat-sub">${filtered.filter(t=>t.sortie>0).length} opérations</div></div><div class="stat-card ${variation>=0?'stat-green':'stat-red'}"><div class="stat-label">Variation nette</div><div class="stat-value">${variation >= 0 ? '+' : ''}${fmt(variation)}</div><div class="stat-sub">${filtered.length} transactions</div></div><div class="stat-card stat-blue"><div class="stat-label">Nb personnes</div><div class="stat-value">${[...new Set(filtered.map(t=>t.personne))].length}</div><div class="stat-sub">personnes distinctes</div></div>`;
+    const byMonth = {}; transactions.forEach(t => { const m = t.date.substring(0,7); if(!monthFilter || m===monthFilter) { if(!byMonth[m]) byMonth[m]={entrees:0,sorties:0,count:0}; byMonth[m].entrees += t.entree; byMonth[m].sorties += t.sortie; byMonth[m].count++; } });
+    const monthBody = document.getElementById('monthlyTableBody'); monthBody.innerHTML = '';
+    Object.keys(byMonth).sort().reverse().forEach(m => { const d = byMonth[m]; const net = d.entrees - d.sorties; const [y, mo] = m.split('-'); const label = new Date(y, mo-1, 1).toLocaleDateString('fr-FR', {month:'long', year:'numeric'}); monthBody.innerHTML += `<tr><td style="font-weight:500;">${label}</td><td>${d.count}</td><td class="cell-entree">${fmt(d.entrees)}</td><td class="cell-sortie">${fmt(d.sorties)}</td><td class="cell-solde ${net>=0?'positive':'negative'}">${net>=0?'+':''}${fmt(net)}</td></tr>`; });
+    const byPerson = {}; filtered.forEach(t => { if(!byPerson[t.personne]) byPerson[t.personne]={entrees:0,sorties:0,count:0}; byPerson[t.personne].entrees += t.entree; byPerson[t.personne].sorties += t.sortie; byPerson[t.personne].count++; });
+    const personBody = document.getElementById('personnesTableBody'); personBody.innerHTML = '';
+    Object.entries(byPerson).sort((a,b)=>b[1].count-a[1].count).forEach(([name,d]) => { const net = d.entrees - d.sorties; personBody.innerHTML += `<tr><td style="font-weight:500;">${name}</td><td>${d.count}</td><td class="cell-entree">${fmt(d.entrees)}</td><td class="cell-sortie">${fmt(d.sorties)}</td><td class="cell-solde ${net>=0?'positive':'negative'}">${net>=0?'+':''}${fmt(net)}</td></tr>`; });
+}
 
-        function closeEditModal() {
-            document.getElementById('editModal').classList.remove('active');
-            document.getElementById('editForm').reset();
-        }
+function generateId() { return Date.now().toString(36) + Math.random().toString(36).substr(2); }
+function newNote() { const note = { id: generateId(), title: '', content: '', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }; notes.unshift(note); saveNotesToFirebase(); renderNotesList(); openNote(note.id); document.getElementById('totalNotes').textContent = notes.length; }
+function openNote(id) { currentNoteId = id; const note = notes.find(n => n.id === id); if(!note) return; document.getElementById('noteNoSelection').style.display = 'none'; const editor = document.getElementById('noteEditor'); editor.style.display = 'flex'; document.getElementById('noteTitleInput').value = note.title; document.getElementById('noteContentArea').value = note.content; const created = new Date(note.createdAt).toLocaleDateString('fr-FR'); const updated = new Date(note.updatedAt).toLocaleDateString('fr-FR', {hour:'2-digit',minute:'2-digit'}); document.getElementById('noteEditorDate').textContent = 'Créée le ' + created; document.getElementById('noteEditorStatus').textContent = 'Modifiée ' + updated; renderNotesList(); }
+function autoSaveNote() { if(!currentNoteId) return; clearTimeout(autoSaveTimer); document.getElementById('noteEditorStatus').textContent = 'Enregistrement...'; autoSaveTimer = setTimeout(() => { const idx = notes.findIndex(n => n.id === currentNoteId); if(idx !== -1) { notes[idx].title = document.getElementById('noteTitleInput').value; notes[idx].content = document.getElementById('noteContentArea').value; notes[idx].updatedAt = new Date().toISOString(); saveNotesToFirebase(); renderNotesList(); showToast('Note sauvegardée'); } }, 600); }
+function deleteCurrentNote() { if(!currentNoteId || !confirm('Supprimer cette note ?')) return; notes = notes.filter(n => n.id !== currentNoteId); currentNoteId = null; saveNotesToFirebase(); renderNotesList(); document.getElementById('noteNoSelection').style.display = 'flex'; document.getElementById('noteEditor').style.display = 'none'; document.getElementById('totalNotes').textContent = notes.length; showToast('Note supprimée'); }
+function renderNotesList() { const q = document.getElementById('notesSearch').value.toLowerCase(); const list = document.getElementById('notesList'); const filtered = notes.filter(n => !q || n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q)); if(filtered.length === 0) { list.innerHTML = '<div class="note-empty-list">Aucune note trouvée</div>'; return; } list.innerHTML = filtered.map(n => `<div class="note-item ${n.id===currentNoteId?'active':''}" onclick="openNote('${n.id}')"><div class="note-item-title">${n.title || 'Sans titre'}</div><div class="note-item-preview">${(n.content||'').replace(/\n/g,' ').substring(0,60) || 'Note vide'}</div><div class="note-item-date">${new Date(n.updatedAt).toLocaleDateString('fr-FR', {day:'2-digit',month:'short'})}</div></div>`).join(''); }
+function exportData() { const data = { euroTransactions, cfaTransactions, notes, exportDate: new Date().toISOString() }; const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `kanga-export-${new Date().toISOString().split('T')[0]}.json`; a.click(); URL.revokeObjectURL(a.href); showToast('Export réussi', 'success'); }
+function importData(event) { const file = event.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = function(e) { try { const data = JSON.parse(e.target.result); if(data.euroTransactions && data.cfaTransactions) { if(confirm('Remplacer toutes les données actuelles ?')) { euroTransactions = data.euroTransactions; cfaTransactions = data.cfaTransactions; if(data.notes) notes = data.notes; saveToFirebase(); saveNotesToFirebase(); updateDisplay(); renderNotesList(); showToast('Import réussi', 'success'); } } else alert('Fichier invalide.'); } catch(err) { alert('Erreur : ' + err.message); } }; reader.readAsText(file); event.target.value = ''; }
 
-        document.getElementById('editForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const type = document.getElementById('editType').value;
-            const index = parseInt(document.getElementById('editIndex').value);
-            
-            const updatedTransaction = {
-                date: document.getElementById('editDate').value,
-                operation: document.getElementById('editOperation').value,
-                entree: parseFloat(document.getElementById('editEntree').value) || 0,
-                sortie: parseFloat(document.getElementById('editSortie').value) || 0,
-                personne: document.getElementById('editPersonne').value,
-                remarque: document.getElementById('editRemarque').value,
-                taux: parseFloat(document.getElementById('editTaux').value) || null
-            };
-
-            if (type === 'euro') {
-                euroTransactions[index] = updatedTransaction;
-            } else {
-                cfaTransactions[index] = updatedTransaction;
-            }
-
-            saveToFirebase();
-            updateDisplay();
-            closeEditModal();
-        });
-
-        function deleteTransaction(type, index) {
-            if (confirm('Êtes-vous sûr de vouloir supprimer cette transaction ? Cette action sera synchronisée avec tous les utilisateurs.')) {
-                if (type === 'euro') {
-                    euroTransactions.splice(index, 1);
-                } else {
-                    cfaTransactions.splice(index, 1);
-                }
-                saveToFirebase();
-                updateDisplay();
-            }
-        }
-
-        document.getElementById('euroForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const transaction = {
-                date: document.getElementById('euroDate').value,
-                operation: document.getElementById('euroOperation').value,
-                entree: parseFloat(document.getElementById('euroEntree').value) || 0,
-                sortie: parseFloat(document.getElementById('euroSortie').value) || 0,
-                personne: document.getElementById('euroPersonne').value,
-                remarque: document.getElementById('euroRemarque').value,
-                taux: parseFloat(document.getElementById('euroTaux').value) || null
-            };
-
-            euroTransactions.push(transaction);
-            saveToFirebase();
-            updateDisplay();
-            this.reset();
-        });
-
-        document.getElementById('cfaForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const transaction = {
-                date: document.getElementById('cfaDate').value,
-                operation: document.getElementById('cfaOperation').value,
-                entree: parseFloat(document.getElementById('cfaEntree').value) || 0,
-                sortie: parseFloat(document.getElementById('cfaSortie').value) || 0,
-                personne: document.getElementById('cfaPersonne').value,
-                remarque: document.getElementById('cfaRemarque').value,
-                taux: parseFloat(document.getElementById('cfaTaux').value) || null
-            };
-
-            cfaTransactions.push(transaction);
-            saveToFirebase();
-            updateDisplay();
-            this.reset();
-        });
-
-        // =================== INITIALISATION ===================
-        document.addEventListener('DOMContentLoaded', function() {
-            const today = new Date().toISOString().split('T')[0];
-            document.getElementById('euroDate').value = today;
-            document.getElementById('cfaDate').value = today;
-            
-            // Démarrer l'écoute Firebase
-            listenToFirebase();
-            
-            // Vérifier les données après un délai
-            setTimeout(checkFirebaseData, 2000);
-            
-            // Charger les données locales en attendant
-            try {
-                const localEuro = localStorage.getItem('lastEuroTransactions');
-                const localCfa = localStorage.getItem('lastCfaTransactions');
-                if (localEuro && localCfa) {
-                    euroTransactions = JSON.parse(localEuro);
-                    cfaTransactions = JSON.parse(localCfa);
-                    updateDisplay();
-                }
-            } catch (e) {
-                // Ignorer les erreurs localStorage
-            }
-        });
-    </script>
+document.addEventListener('DOMContentLoaded', function() {
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('euroDate').value = today;
+    document.getElementById('cfaDate').value = today;
+    listenToFirebase();
+    setTimeout(() => { database.ref('euroTransactions').once('value').then(snap => { if(!snap.exists()) loadHistoricalData(); else updateDisplay(); }); }, 2000);
+});
+</script>
 </body>
 </html>
