@@ -1,1019 +1,1554 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestionnaire de Change — Euro / CFA</title>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap');
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KANGA · Gestionnaire Euro/CFA</title>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:        #f1f5ff;
+  --bg2:       #e6ecfa;
+  --surface:   #ffffff;
+  --surface2:  #f8faff;
+  --surface3:  #eef1fb;
+  --border:    rgba(99,102,241,0.10);
+  --border2:   rgba(99,102,241,0.20);
+  --text:      #0f172a;
+  --text2:     #475569;
+  --text3:     #94a3b8;
+  --indigo:    #4f46e5;
+  --indigo-dim:rgba(79,70,229,0.10);
+  --indigo-glow:rgba(79,70,229,0.25);
+  --gold:      #b45309;
+  --gold-dim:  rgba(180,83,9,0.10);
+  --gold-glow: rgba(180,83,9,0.22);
+  --blue:      #1d4ed8;
+  --blue-dim:  rgba(29,78,216,0.10);
+  --green:     #047857;
+  --green-dim: rgba(4,120,87,0.10);
+  --red:       #b91c1c;
+  --red-dim:   rgba(185,28,28,0.10);
+  --amber:     #92400e;
+  --amber-dim: rgba(146,64,14,0.10);
+  --purple:    #6d28d9;
+  --purple-dim:rgba(109,40,217,0.10);
+  --teal:      #0f766e;
+  --teal-dim:  rgba(15,118,110,0.10);
+  --r:         8px;
+  --r-lg:      14px;
+  --r-xl:      20px;
+}
 
-        :root {
-            --bg: #f8fafc;
-            --surface: #ffffff;
-            --surface2: #f1f5f9;
-            --border: #e2e8f0;
-            --border2: #cbd5e1;
-            --text: #0f172a;
-            --text2: #475569;
-            --text3: #94a3b8;
-            --accent: #3b82f6;
-            --accent-dark: #2563eb;
-            --accent-light: #eff6ff;
-            --green: #10b981;
-            --green-light: #ecfdf5;
-            --red: #ef4444;
-            --red-light: #fef2f2;
-            --amber: #f59e0b;
-            --amber-light: #fffbeb;
-            --purple: #8b5cf6;
-            --purple-light: #f5f3ff;
-            --radius: 10px;
-            --radius-lg: 16px;
-            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-            --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
-            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-        }
+* { margin:0; padding:0; box-sizing:border-box; }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  padding: 24px;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 0% 0%,   rgba(99,102,241,0.08) 0%, transparent 55%),
+    radial-gradient(ellipse 60% 40% at 100% 0%,  rgba(109,40,217,0.06) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 40% at 50% 100%, rgba(4,120,87,0.05)   0%, transparent 60%);
+}
 
-        body {
-            font-family: 'Inter', sans-serif;
-            background: var(--bg);
-            padding: 20px;
-            min-height: 100vh;
-            color: var(--text);
-        }
+/* ── NOMBRES : police monospace chiffrée ── */
+.kpi-value,
+.val-in, .val-out, .val-pos, .val-neg, .val-neu,
+.solde-amount, .cell-num {
+  font-family: 'JetBrains Mono', monospace !important;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+}
 
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-        }
+.wrap { max-width: 1440px; margin: 0 auto; }
 
-        /* HEADER */
-        .header {
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-            color: #fff;
-            padding: 24px 32px;
-            border-radius: var(--radius-lg);
-            margin-bottom: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 16px;
-            box-shadow: var(--shadow-md);
-        }
-        .header-left h1 {
-            font-size: 1.5rem;
-            font-weight: 700;
-            letter-spacing: -0.02em;
-            background: linear-gradient(135deg, #fff, #94a3b8);
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
-        }
-        .header-left p {
-            font-size: 0.8rem;
-            opacity: 0.7;
-            margin-top: 4px;
-        }
-        .connection-status {
-            font-size: 0.75rem;
-            padding: 6px 14px;
-            border-radius: 40px;
-            background: rgba(255,255,255,0.1);
-            border: 1px solid rgba(255,255,255,0.2);
-            font-weight: 500;
-        }
-        .connection-status.online { background: rgba(16,185,129,0.2); border-color: rgba(16,185,129,0.4); color: #86efac; }
-        .connection-status.offline { background: rgba(239,68,68,0.2); border-color: rgba(239,68,68,0.4); color: #fca5a5; }
-        .connection-status.syncing { background: rgba(245,158,11,0.2); border-color: rgba(245,158,11,0.4); color: #fcd34d; }
+/* ── HEADER ── */
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 24px; gap: 16px; flex-wrap: wrap;
+  background: linear-gradient(135deg, #312e81 0%, #4f46e5 45%, #7c3aed 100%);
+  border-radius: var(--r-xl);
+  padding: 22px 28px;
+  box-shadow: 0 8px 32px rgba(79,70,229,0.30);
+  position: relative; overflow: hidden;
+}
+.header::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Ccircle cx='30' cy='30' r='20'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") repeat;
+  pointer-events: none;
+}
+.brand { display: flex; align-items: center; gap: 14px; position: relative; }
+.brand-icon {
+  width: 46px; height: 46px; border-radius: 12px;
+  background: rgba(255,255,255,0.2);
+  border: 1px solid rgba(255,255,255,0.3);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.4rem;
+  color: #fff;
+  backdrop-filter: blur(4px);
+}
+.brand-name {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.5rem; font-weight: 800; letter-spacing: -0.03em;
+  color: #fff;
+}
+.brand-sub { font-size: 0.7rem; color: rgba(255,255,255,0.65); margin-top: 2px; letter-spacing: 0.07em; text-transform: uppercase; }
+.header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; position: relative; }
 
-        /* SOLDES */
-        .soldes {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 16px;
-            margin-bottom: 24px;
-        }
-        .solde-card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            padding: 20px 24px;
-            transition: all 0.2s ease;
-            box-shadow: var(--shadow-sm);
-        }
-        .solde-card:hover {
-            box-shadow: var(--shadow-md);
-            border-color: var(--border2);
-        }
-        .solde-card h3 {
-            font-size: 0.7rem;
-            font-weight: 600;
-            color: var(--text3);
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            margin-bottom: 8px;
-        }
-        .solde-amount {
-            font-size: 1.8rem;
-            font-weight: 700;
-            letter-spacing: -0.02em;
-        }
-        .solde-card.euro .solde-amount { color: var(--accent); }
-        .solde-card.cfa .solde-amount { color: var(--green); }
+.pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 13px; border-radius: 40px;
+  font-size: 0.72rem; font-weight: 600; border: 1px solid;
+}
+.pill-conn  { border-color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.15); color: #fff; }
+.pill-disco { border-color: rgba(255,200,200,0.5); background: rgba(255,100,100,0.20); color: #ffd0d0; }
+.pill-sync  { border-color: rgba(255,220,100,0.5); background: rgba(255,200,50,0.15);  color: #fde68a; }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.dot.pulse { animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
 
-        /* ACTION BUTTONS */
-        .action-bar {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 24px;
-            flex-wrap: wrap;
-        }
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 18px;
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            background: var(--surface);
-            color: var(--text2);
-            font-size: 0.85rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .btn:hover { 
-            background: var(--surface2); 
-            border-color: var(--border2);
-            transform: translateY(-1px);
-        }
-        .btn-primary { 
-            background: var(--accent); 
-            color: #fff; 
-            border-color: var(--accent);
-        }
-        .btn-primary:hover { 
-            background: var(--accent-dark); 
-            transform: translateY(-1px);
-        }
-        .btn-green { background: var(--green-light); color: var(--green); border-color: #a7f3d0; }
-        .btn-green:hover { background: #d1fae5; }
-        .btn-amber { background: var(--amber-light); color: var(--amber); border-color: #fed7aa; }
-        .btn-amber:hover { background: #fef3c7; }
+/* ── BACKUP BAR ── */
+.backup-bar {
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 60%, #1e4060 100%);
+  border: 1px solid rgba(99,179,237,0.20);
+  border-radius: var(--r-lg);
+  padding: 14px 20px;
+  margin-bottom: 24px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap;
+  box-shadow: 0 4px 20px rgba(15,23,42,0.20);
+}
+.backup-left { display: flex; align-items: center; gap: 12px; }
+.backup-shield { font-size: 1.3rem; }
+.backup-label { font-size: 0.8rem; font-weight: 600; color: #e2e8f0; }
+.backup-sub   { font-size: 0.7rem; color: #94a3b8; margin-top: 2px; }
+.backup-sub b { color: #6ee7b7; }.backup-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
-        /* TABS */
-        .tabs {
-            display: flex;
-            gap: 8px;
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            padding: 6px;
-            margin-bottom: 24px;
-        }
-        .tab {
-            padding: 10px 24px;
-            border-radius: var(--radius);
-            border: none;
-            background: none;
-            font-size: 0.85rem;
-            font-weight: 500;
-            color: var(--text2);
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .tab.active { 
-            background: var(--accent); 
-            color: #fff; 
-            box-shadow: var(--shadow-sm);
-        }
-        .tab:hover:not(.active) { 
-            background: var(--surface2); 
-            color: var(--text);
-        }
+.btn-sm {
+  padding: 7px 14px; border-radius: var(--r);
+  font-size: 0.76rem; font-weight: 600;
+  cursor: pointer; border: 1px solid; transition: all .18s;
+  font-family: 'DM Sans', sans-serif;
+}
+.btn-sm:hover { transform: translateY(-1px); }
+.btn-gold   { background: var(--gold-dim);   color: var(--gold);   border-color: rgba(217,119,6,0.3); }
+.btn-gold:hover { background: rgba(217,119,6,0.18); }
+.btn-blue   { background: var(--blue-dim);   color: var(--blue);   border-color: rgba(37,99,235,0.3); }
+.btn-blue:hover { background: rgba(37,99,235,0.18); }
+.btn-purple { background: var(--purple-dim); color: var(--purple); border-color: rgba(124,58,237,0.3); }
+.btn-purple:hover { background: rgba(124,58,237,0.18); }
 
-        /* TAB CONTENT */
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
+/* ── KPI CARDS ── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px; margin-bottom: 24px;
+}
+.kpi {
+  border-radius: var(--r-lg);
+  padding: 20px 22px;
+  position: relative; overflow: hidden;
+  transition: transform .2s, box-shadow .2s;
+  border: none;
+}
+.kpi:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,.15); }
+.kpi::after {
+  content: attr(data-icon);
+  position: absolute; right: 14px; bottom: 10px;
+  font-size: 2.4rem; opacity: 0.15; line-height: 1;
+  pointer-events: none;
+}
+/* Couleurs des KPI */
+.kpi-blue   { background: linear-gradient(135deg, #1d4ed8, #3b82f6); color: #fff; box-shadow: 0 4px 18px rgba(29,78,216,.30); }
+.kpi-gold   { background: linear-gradient(135deg, #92400e, #d97706); color: #fff; box-shadow: 0 4px 18px rgba(146,64,14,.30); }
+.kpi-green  { background: linear-gradient(135deg, #065f46, #10b981); color: #fff; box-shadow: 0 4px 18px rgba(6,95,70,.30); }
+.kpi-red    { background: linear-gradient(135deg, #991b1b, #ef4444); color: #fff; box-shadow: 0 4px 18px rgba(153,27,27,.30); }
+.kpi-purple { background: linear-gradient(135deg, #5b21b6, #8b5cf6); color: #fff; box-shadow: 0 4px 18px rgba(91,33,182,.30); }
+.kpi-amber  { background: linear-gradient(135deg, #78350f, #f59e0b); color: #fff; box-shadow: 0 4px 18px rgba(120,53,15,.30); }
+.kpi-teal   { background: linear-gradient(135deg, #134e4a, #14b8a6); color: #fff; box-shadow: 0 4px 18px rgba(19,78,74,.30); }
 
-        /* FILTERS */
-        .filters-bar {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            padding: 16px 20px;
-            margin-bottom: 24px;
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-            align-items: flex-end;
-        }
-        .filter-group {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            min-width: 120px;
-            flex: 1;
-        }
-        .filter-group label {
-            font-size: 0.7rem;
-            font-weight: 600;
-            color: var(--text3);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-        .filter-group input, .filter-group select {
-            padding: 8px 12px;
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            font-size: 0.85rem;
-            background: var(--surface2);
-            color: var(--text);
-            transition: all 0.2s;
-        }
-        .filter-group input:focus, .filter-group select:focus {
-            outline: none;
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
-        }
-        .filter-reset {
-            padding: 8px 16px;
-            background: none;
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            font-size: 0.8rem;
-            color: var(--text2);
-            cursor: pointer;
-            transition: all 0.2s;
-            align-self: flex-end;
-        }
-        .filter-reset:hover { 
-            background: var(--red-light); 
-            color: var(--red); 
-            border-color: #fecaca;
-        }
+.kpi-label {
+  font-size: 0.67rem; font-weight: 700;
+  color: rgba(255,255,255,0.75);
+  text-transform: uppercase; letter-spacing: .09em; margin-bottom: 10px;
+}
+.kpi-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1.6rem; font-weight: 700;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+.kpi-sub { font-size: 0.7rem; color: rgba(255,255,255,0.65); margin-top: 6px; }
 
-        /* FORM */
-        .form-section {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            padding: 24px;
-            margin-bottom: 24px;
-            box-shadow: var(--shadow-sm);
-        }
-        .form-section h2 {
-            font-size: 1rem;
-            font-weight: 600;
-            color: var(--text);
-            margin-bottom: 18px;
-            padding-bottom: 12px;
-            border-bottom: 1px solid var(--border);
-        }
-        .form-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 16px;
-            margin-bottom: 16px;
-        }
-        .form-group { display: flex; flex-direction: column; gap: 6px; }
-        .form-group label {
-            font-size: 0.7rem;
-            font-weight: 600;
-            color: var(--text3);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-        .form-group input, .form-group select, .form-group textarea {
-            padding: 10px 12px;
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            font-size: 0.85rem;
-            background: var(--surface2);
-            transition: all 0.2s;
-        }
-        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
-            outline: none;
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
-            background: var(--surface);
-        }
-        .form-group textarea { resize: vertical; min-height: 60px; }
+/* ── TABS ── */
+.tabs-wrap {
+  display: flex; gap: 4px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: 5px; margin-bottom: 22px;
+  overflow-x: auto;
+  box-shadow: 0 1px 4px rgba(0,0,0,.05);
+}
+.tab {
+  padding: 9px 22px; border-radius: var(--r);
+  border: none; background: none;
+  font-size: 0.82rem; font-weight: 600;
+  color: var(--text2); cursor: pointer; transition: all .18s;
+  font-family: 'DM Sans', sans-serif; white-space: nowrap;
+}
+.tab:nth-child(1).active { background: linear-gradient(135deg, #4f46e5, #6366f1); color: #fff; box-shadow: 0 3px 12px rgba(79,70,229,.35); }
+.tab:nth-child(2).active { background: linear-gradient(135deg, #047857, #10b981); color: #fff; box-shadow: 0 3px 12px rgba(4,120,87,.35); }
+.tab:nth-child(3).active { background: linear-gradient(135deg, #b45309, #f59e0b); color: #fff; box-shadow: 0 3px 12px rgba(180,83,9,.35); }
+.tab:nth-child(4).active { background: linear-gradient(135deg, #6d28d9, #a78bfa); color: #fff; box-shadow: 0 3px 12px rgba(109,40,217,.35); }
+.tab:hover:not(.active) { background: var(--surface3); color: var(--text); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
 
-        /* TABLE */
-        .table-section {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            overflow: hidden;
-            margin-bottom: 24px;
-            box-shadow: var(--shadow-sm);
-        }
-        .table-header {
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-        .table-header h2 { font-size: 0.95rem; font-weight: 600; }
-        .table-info { font-size: 0.75rem; color: var(--text3); }
-        .table-scroll { overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; min-width: 750px; }
-        th {
-            background: var(--surface2);
-            color: var(--text2);
-            padding: 12px 16px;
-            text-align: left;
-            font-size: 0.7rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            border-bottom: 1px solid var(--border);
-        }
-        td {
-            padding: 12px 16px;
-            border-bottom: 1px solid var(--border);
-            font-size: 0.85rem;
-            color: var(--text);
-        }
-        tr:last-child td { border-bottom: none; }
-        tr:hover td { background: var(--bg); }
-        .cell-mono { font-family: 'Inter', monospace; font-weight: 500; }
-        .cell-entree { color: var(--green); font-weight: 600; }
-        .cell-sortie { color: var(--red); font-weight: 600; }
-        .cell-solde { font-weight: 600; }
-        .cell-solde.positive { color: var(--green); }
-        .cell-solde.negative { color: var(--red); }
-        .badge-op {
-            display: inline-block;
-            padding: 3px 10px;
-            border-radius: 40px;
-            font-size: 0.7rem;
-            font-weight: 600;
-        }
-        .badge-entree { background: var(--green-light); color: var(--green); }
-        .badge-sortie { background: var(--red-light); color: var(--red); }
-        .edit-btn, .delete-btn {
-            padding: 5px 12px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.7rem;
-            font-weight: 500;
-            transition: all 0.2s;
-            border: none;
-        }
-        .edit-btn {
-            background: var(--accent-light);
-            color: var(--accent);
-        }
-        .edit-btn:hover { background: #dbeafe; transform: translateY(-1px); }
-        .delete-btn {
-            background: var(--red-light);
-            color: var(--red);
-            margin-left: 6px;
-        }
-        .delete-btn:hover { background: #fee2e2; transform: translateY(-1px); }
-        .empty-state {
-            text-align: center;
-            padding: 48px;
-            color: var(--text3);
-        }
+/* ── TOOLBAR (actions row) ── */
+.toolbar {
+  display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;
+}
+.btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 16px; border-radius: var(--r);
+  border: 1px solid var(--border2); background: var(--surface);
+  color: var(--text2); font-size: 0.8rem; font-weight: 500;
+  cursor: pointer; transition: all .18s;
+  font-family: 'DM Sans', sans-serif;
+}
+.btn:hover { background: var(--surface3); color: var(--text); transform: translateY(-1px); }
+.btn-primary { background: linear-gradient(135deg, #4f46e5, #6366f1); color: #fff; border-color: transparent; font-weight: 700; box-shadow: 0 3px 10px rgba(79,70,229,.30); }
+.btn-primary:hover { background: linear-gradient(135deg, #4338ca, #4f46e5); transform: translateY(-1px); box-shadow: 0 5px 16px rgba(79,70,229,.40); }
+.btn-green-o { color: var(--green); border-color: rgba(4,120,87,.3); background: var(--green-dim); }
+.btn-green-o:hover { background: rgba(4,120,87,.16); }
+.btn-amber-o { color: var(--gold); border-color: rgba(180,83,9,.3); background: var(--gold-dim); }
+.btn-amber-o:hover { background: rgba(180,83,9,.16); }
 
-        /* STATS */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 16px;
-            margin-bottom: 24px;
-        }
-        .stat-card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            padding: 20px;
-            box-shadow: var(--shadow-sm);
-        }
-        .stat-card .stat-label {
-            font-size: 0.7rem;
-            font-weight: 600;
-            color: var(--text3);
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            margin-bottom: 8px;
-        }
-        .stat-card .stat-value {
-            font-size: 1.6rem;
-            font-weight: 700;
-            letter-spacing: -0.02em;
-        }
-        .stat-card .stat-sub {
-            font-size: 0.7rem;
-            color: var(--text3);
-            margin-top: 6px;
-        }
-        .stat-green .stat-value { color: var(--green); }
-        .stat-red .stat-value { color: var(--red); }
-        .stat-blue .stat-value { color: var(--accent); }
+/* ── FILTERS ── */
+.filters {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: 16px 18px;
+  margin-bottom: 18px; display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;
+}
+.fg { display: flex; flex-direction: column; gap: 5px; min-width: 130px; flex: 1; }
+.fg label { font-size: 0.65rem; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .07em; }
+.fg input, .fg select {
+  padding: 8px 11px; border: 1px solid var(--border);
+  border-radius: var(--r); font-size: 0.82rem;
+  background: var(--surface2); color: var(--text);
+  transition: border-color .18s; font-family: 'DM Sans', sans-serif;
+}
+.fg input:focus, .fg select:focus { outline: none; border-color: var(--indigo); }
+.fg select option { background: var(--surface); }
+.btn-reset {
+  padding: 8px 14px; background: none; border: 1px solid var(--border);
+  border-radius: var(--r); font-size: 0.75rem; color: var(--text2);
+  cursor: pointer; transition: all .18s; align-self: flex-end;
+  font-family: 'DM Sans', sans-serif;
+}
+.btn-reset:hover { background: var(--red-dim); color: var(--red); border-color: rgba(248,113,113,.3); }
 
-        .monthly-table-wrap {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            overflow: hidden;
-            margin-bottom: 24px;
-        }
-        .monthly-table-wrap h2 {
-            font-size: 0.95rem;
-            font-weight: 600;
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--border);
-        }
-        .month-select-row {
-            padding: 16px 20px;
-            display: flex;
-            gap: 16px;
-            align-items: center;
-            border-bottom: 1px solid var(--border);
-            flex-wrap: wrap;
-            background: var(--surface2);
-        }
-        .month-select-row label { font-size: 0.8rem; color: var(--text2); font-weight: 500; }
-        .month-select-row select {
-            padding: 8px 12px;
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            font-size: 0.85rem;
-            background: var(--surface);
-            color: var(--text);
-        }
-        .month-select-row select:focus { outline: none; border-color: var(--accent); }
+/* ── FORM CARD ── */
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: 22px 24px;
+  margin-bottom: 20px;
+}
+.card-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 0.9rem; font-weight: 700; color: var(--text);
+  margin-bottom: 16px; padding-bottom: 12px;
+  border-bottom: 2px solid #e0e7ff;
+  display: flex; align-items: center; gap: 8px;
+}
+.card-title::before {
+  content: '';
+  display: inline-block; width: 4px; height: 16px;
+  background: linear-gradient(180deg, #4f46e5, #7c3aed);
+  border-radius: 2px; flex-shrink: 0;
+}
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; margin-bottom: 14px; }
+.fgroup { display: flex; flex-direction: column; gap: 5px; }
+.fgroup label { font-size: 0.65rem; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .07em; }
+.fgroup input, .fgroup select, .fgroup textarea {
+  padding: 9px 12px; border: 1px solid var(--border);
+  border-radius: var(--r); font-size: 0.83rem;
+  background: var(--surface2); color: var(--text);
+  transition: all .18s; font-family: 'DM Sans', sans-serif;
+}
+.fgroup input:focus, .fgroup select:focus, .fgroup textarea:focus {
+  outline: none; border-color: var(--indigo); background: #fff;
+  box-shadow: 0 0 0 3px var(--indigo-dim);
+}
+.fgroup select option { background: var(--surface); }
+.fgroup textarea { resize: vertical; min-height: 56px; }
 
-        /* NOTES */
-        .notes-grid {
-            display: grid;
-            grid-template-columns: 340px 1fr;
-            gap: 20px;
-        }
-        .notes-list-panel {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            max-height: 680px;
-            box-shadow: var(--shadow-sm);
-        }
-        .notes-list-header {
-            padding: 16px 18px;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        .notes-list-header h2 { font-size: 0.9rem; font-weight: 600; }
-        .notes-search {
-            padding: 12px 16px;
-            border-bottom: 1px solid var(--border);
-        }
-        .notes-search input {
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            font-size: 0.85rem;
-            background: var(--surface2);
-        }
-        .notes-search input:focus { outline: none; border-color: var(--accent); }
-        .notes-list { overflow-y: auto; flex: 1; }
-        .note-item {
-            padding: 14px 16px;
-            border-bottom: 1px solid var(--border);
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .note-item:hover { background: var(--surface2); }
-        .note-item.active { background: var(--accent-light); border-left: 3px solid var(--accent); }
-        .note-item-title {
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: var(--text);
-            margin-bottom: 4px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .note-item-preview {
-            font-size: 0.75rem;
-            color: var(--text3);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .note-item-date {
-            font-size: 0.65rem;
-            color: var(--text3);
-            margin-top: 6px;
-        }
-        .note-empty-list {
-            padding: 40px;
-            text-align: center;
-            color: var(--text3);
-        }
+/* ── TABLE ── */
+.table-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); overflow: hidden; margin-bottom: 20px;
+  box-shadow: 0 1px 6px rgba(0,0,0,.06);
+}
+.table-head {
+  padding: 14px 18px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: linear-gradient(90deg, #f5f3ff, #eff6ff);
+}
+.table-head h2 { font-family: 'Syne', sans-serif; font-size: 0.88rem; font-weight: 700; color: var(--indigo); }
+.table-count { font-size: 0.72rem; color: var(--text3); }
+.table-scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; min-width: 700px; }
+th {
+  background: #f5f3ff; color: #4f46e5;
+  padding: 11px 15px; text-align: left;
+  font-size: 0.65rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .07em;
+  border-bottom: 1px solid #e0e7ff;
+}
+td {
+  padding: 11px 15px; border-bottom: 1px solid var(--border);
+  font-size: 0.82rem; color: var(--text);
+}
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #faf5ff; }
+.empty { text-align: center; padding: 48px; color: var(--text3); }
 
-        .notes-editor-panel {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            max-height: 680px;
-            box-shadow: var(--shadow-sm);
-        }
-        .editor-toolbar {
-            padding: 14px 18px;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
-        .editor-toolbar-left { display: flex; gap: 10px; align-items: center; flex: 1; }
-        .note-title-input {
-            flex: 1;
-            padding: 8px 12px;
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            font-size: 0.9rem;
-            font-weight: 500;
-            background: var(--surface2);
-        }
-        .note-title-input:focus { outline: none; border-color: var(--accent); }
-        .note-content-area {
-            flex: 1;
-            padding: 18px;
-            border: none;
-            resize: none;
-            font-size: 0.9rem;
-            line-height: 1.6;
-            background: var(--surface);
-            font-family: 'Inter', sans-serif;
-        }
-        .note-content-area:focus { outline: none; }
-        .editor-status {
-            padding: 10px 18px;
-            border-top: 1px solid var(--border);
-            font-size: 0.7rem;
-            color: var(--text3);
-            display: flex;
-            justify-content: space-between;
-        }
-        .note-no-selection {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            color: var(--text3);
-            gap: 12px;
-            padding: 48px;
-        }
-        .note-no-selection-icon { font-size: 3rem; opacity: 0.5; }
+.badge {
+  display: inline-block; padding: 3px 9px;
+  border-radius: 30px; font-size: 0.67rem; font-weight: 700;
+}
+.badge-in  { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+.badge-out { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+.val-in  { color: #047857; font-weight: 700; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; }
+.val-out { color: #b91c1c; font-weight: 700; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; }
+.val-pos { color: #047857; font-weight: 700; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; }
+.val-neg { color: #b91c1c; font-weight: 700; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; }
+.val-neu { color: #475569; font-weight: 600; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; }
 
-        /* MODAL */
-        .modal-overlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.5);
-            backdrop-filter: blur(4px);
-            z-index: 1000;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        .modal-overlay.active { display: flex; }
-        .modal {
-            background: var(--surface);
-            border-radius: var(--radius-lg);
-            padding: 28px;
-            max-width: 540px;
-            width: 100%;
-            max-height: 90vh;
-            overflow-y: auto;
-            box-shadow: var(--shadow-md);
-        }
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 14px;
-            border-bottom: 1px solid var(--border);
-        }
-        .modal-header h2 { font-size: 1.1rem; font-weight: 600; }
-        .close-btn {
-            background: none;
-            border: none;
-            font-size: 1.5rem;
-            color: var(--text3);
-            cursor: pointer;
-            padding: 0 8px;
-            border-radius: 6px;
-        }
-        .close-btn:hover { background: var(--surface2); }
+.act-btn {
+  padding: 4px 10px; border-radius: 5px; cursor: pointer;
+  font-size: 0.67rem; font-weight: 600; border: none; transition: all .15s;
+  font-family: 'DM Sans', sans-serif;
+}
+.act-edit   { background: #ede9fe; color: #5b21b6; border: 1px solid #c4b5fd; }
+.act-edit:hover  { background: #ddd6fe; }
+.act-del    { background: #fee2e2; color: #991b1b; margin-left: 5px; border: 1px solid #fca5a5; }
+.act-del:hover   { background: #fecaca; }
 
-        /* LOADING */
-        .loading {
-            padding: 40px;
-            text-align: center;
-            color: var(--text3);
-        }
+/* ── ANALYTICS ── */
+.analytics-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 20px;
+}
+@media(max-width:900px){ .analytics-grid { grid-template-columns: 1fr; } }
 
-        /* RESPONSIVE */
-        @media (max-width: 900px) {
-            .notes-grid { grid-template-columns: 1fr; }
-            .notes-list-panel, .notes-editor-panel { max-height: 400px; }
-        }
-        @media (max-width: 640px) {
-            body { padding: 12px; }
-            .header { padding: 16px 20px; }
-            .header-left h1 { font-size: 1.2rem; }
-            .soldes { grid-template-columns: repeat(2, 1fr); }
-            .form-grid { grid-template-columns: 1fr; }
-        }
+.chart-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: 20px; overflow: hidden;
+  box-shadow: 0 1px 6px rgba(0,0,0,.05);
+}
+.chart-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 0.82rem; font-weight: 700; color: var(--text);
+  margin-bottom: 18px; display: flex; align-items: center; gap: 8px;
+  padding-bottom: 10px; border-bottom: 2px solid #e0e7ff;
+}
+.chart-title span { font-size: 1rem; }
 
-        /* TOAST */
-        .toast {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            background: #1e293b;
-            color: #fff;
-            padding: 12px 20px;
-            border-radius: var(--radius);
-            font-size: 0.8rem;
-            z-index: 9999;
-            opacity: 0;
-            transform: translateY(10px);
-            transition: all 0.25s ease;
-            pointer-events: none;
-            font-weight: 500;
-            box-shadow: var(--shadow-md);
-        }
-        .toast.show { opacity: 1; transform: translateY(0); }
-        .toast.success { background: var(--green); }
-        .toast.error { background: var(--red); }
-    </style>
+/* Bar chart */
+.bar-chart { display: flex; flex-direction: column; gap: 10px; }
+.bar-row { display: flex; align-items: center; gap: 10px; }
+.bar-label { font-size: 0.72rem; color: var(--text2); min-width: 80px; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-track { flex: 1; height: 9px; background: #e0e7ff; border-radius: 5px; overflow: hidden; }.bar-fill  { height: 100%; border-radius: 4px; transition: width .6s ease; }
+.bar-val   { font-size: 0.7rem; font-weight: 600; min-width: 70px; text-align: right; }
+
+/* Trend chart (SVG) */
+.trend-svg { width: 100%; overflow: visible; }
+
+/* Progress ring */
+.ring-wrap { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+.ring-legend { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+.ring-legend-item { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--text2); }
+.ring-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+/* Heatmap */
+.heatmap { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.hm-cell {
+  aspect-ratio: 1; border-radius: 3px; background: var(--surface3);
+  cursor: default; transition: transform .15s;
+}
+.hm-cell:hover { transform: scale(1.3); }
+.hm-0 { background: var(--surface3); }
+.hm-1 { background: rgba(52,211,153,.2); }
+.hm-2 { background: rgba(52,211,153,.4); }
+.hm-3 { background: rgba(52,211,153,.65); }
+.hm-4 { background: var(--green); }
+
+/* Month stats table */
+.mini-table { width: 100%; border-collapse: collapse; }
+.mini-table th { font-size: 0.63rem; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .07em; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+.mini-table td { font-size: 0.78rem; padding: 9px 10px; border-bottom: 1px solid var(--border); color: var(--text2); }
+.mini-table tr:last-child td { border-bottom: none; }
+.mini-table tr:hover td { background: var(--surface2); }.mini-table td:first-child { font-weight: 600; color: var(--text); }
+
+/* Selector row */
+.selector-row {
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  background: var(--surface2); padding: 12px 16px;
+  border-bottom: 1px solid var(--border); border-radius: var(--r-lg) var(--r-lg) 0 0;
+}
+.selector-row label { font-size: 0.75rem; color: var(--text2); font-weight: 500; }
+.selector-row select {
+  padding: 7px 11px; border: 1px solid var(--border); border-radius: var(--r);
+  font-size: 0.8rem; background: var(--surface); color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+}
+.selector-row select:focus { outline: none; border-color: var(--indigo); }
+.selector-row select option { background: var(--surface); }
+
+/* ── NOTES ── */
+.notes-layout { display: grid; grid-template-columns: 300px 1fr; gap: 18px; }
+@media(max-width:800px){ .notes-layout { grid-template-columns: 1fr; } }
+.notes-list-panel {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); overflow: hidden;
+  display: flex; flex-direction: column; max-height: 640px;
+}
+.nlp-head {
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.nlp-head h3 { font-family: 'Syne', sans-serif; font-size: 0.85rem; font-weight: 700; }
+.notes-search { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.notes-search input {
+  width: 100%; padding: 7px 11px; border: 1px solid var(--border);
+  border-radius: var(--r); font-size: 0.82rem;
+  background: var(--surface2); color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+}
+.notes-search input:focus { outline: none; border-color: var(--indigo); }
+.notes-list { overflow-y: auto; flex: 1; }
+.note-item { padding: 12px 14px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background .15s; }
+.note-item:hover { background: var(--surface2); }
+.note-item.active { background: #ede9fe; border-left: 3px solid #6d28d9; }
+.ni-title { font-size: 0.82rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ni-preview { font-size: 0.72rem; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 3px; }
+.ni-date { font-size: 0.62rem; color: var(--text3); margin-top: 5px; }
+.note-empty { padding: 32px; text-align: center; color: var(--text3); font-size: 0.82rem; }
+.notes-editor-panel {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); overflow: hidden;
+  display: flex; flex-direction: column; max-height: 640px;
+}
+.ne-toolbar { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+.ne-title { flex: 1; padding: 7px 11px; border: 1px solid var(--border); border-radius: var(--r); font-size: 0.88rem; font-weight: 600; background: var(--surface2); color: var(--text); font-family: 'DM Sans', sans-serif; }
+.ne-title:focus { outline: none; border-color: var(--indigo); }
+.ne-body { flex: 1; padding: 16px; border: none; resize: none; font-size: 0.85rem; line-height: 1.65; background: var(--surface); color: var(--text); font-family: 'DM Sans', sans-serif; }
+.ne-body:focus { outline: none; }
+.ne-status { padding: 9px 16px; border-top: 1px solid var(--border); font-size: 0.68rem; color: var(--text3); display: flex; justify-content: space-between; }
+.ne-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text3); gap: 10px; padding: 40px; text-align: center; }
+.ne-empty-icon { font-size: 2.5rem; opacity: .4; }
+
+/* ── MODAL ── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(15,23,42,0.45); backdrop-filter: blur(8px);
+  z-index: 1000; align-items: center; justify-content: center; padding: 20px;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--surface); border: 1px solid var(--border2);
+  border-radius: var(--r-xl); padding: 26px;
+  max-width: 540px; width: 100%; max-height: 90vh; overflow-y: auto;
+  box-shadow: 0 24px 64px rgba(15,23,42,0.18); border: 1px solid var(--border2);
+  animation: modalIn .2s ease;
+}
+@keyframes modalIn { from{opacity:0;transform:scale(.95) translateY(10px)} to{opacity:1;transform:none} }
+.modal-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid var(--border);
+}
+.modal-header h2 { font-family: 'Syne', sans-serif; font-size: 1rem; font-weight: 700; }
+.close-btn { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text2); font-size: 1.1rem; cursor: pointer; padding: 2px 10px; }
+.close-btn:hover { background: var(--surface3); color: var(--text); }
+
+/* History modal list */
+.snap-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 11px 14px; border: 1px solid var(--border);
+  border-radius: var(--r); margin-bottom: 7px; background: var(--surface2); gap: 12px;
+}
+.snap-info { flex: 1; }
+.snap-date { font-size: 0.82rem; font-weight: 600; color: var(--text); }
+.snap-meta { font-size: 0.7rem; color: var(--text3); margin-top: 3px; }
+.snap-tag {
+  font-size: 0.63rem; font-weight: 700; padding: 2px 7px;
+  border-radius: 10px; margin-left: 7px;
+}
+.snap-tag-auto   { background: var(--green-dim); color: var(--green); }
+.snap-tag-manual { background: var(--blue-dim);  color: var(--blue); }
+.snap-restore-btn { padding: 5px 12px; background: linear-gradient(135deg,#4f46e5,#6366f1); color: #fff; border: none; border-radius: var(--r); font-size: 0.72rem; font-weight: 700; cursor: pointer; white-space: nowrap; font-family: 'DM Sans', sans-serif; box-shadow: 0 2px 8px rgba(79,70,229,.3); }
+.snap-restore-btn:hover { background: linear-gradient(135deg,#4338ca,#4f46e5); }
+.snap-empty { text-align: center; padding: 32px; color: var(--text3); font-size: 0.82rem; }
+
+/* ── LOADING ── */
+.loading { padding: 40px; text-align: center; color: var(--text3); font-size: 0.85rem; }
+
+/* ── TOAST ── */
+.toast {
+  position: fixed; bottom: 22px; right: 22px;
+  background: var(--surface); border: 1px solid var(--border2);
+  color: var(--text); padding: 11px 18px; border-radius: var(--r);
+  font-size: 0.78rem; font-weight: 500; z-index: 9999;
+  opacity: 0; transform: translateY(8px);
+  transition: all .22s ease; pointer-events: none;
+  box-shadow: 0 8px 24px rgba(0,0,0,.12); max-width: 300px;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast.ok  { border-color: rgba(52,211,153,.4); color: var(--green); }
+.toast.err { border-color: rgba(248,113,113,.4); color: var(--red); }
+.toast.warn{ border-color: rgba(251,191,36,.4);  color: var(--amber); }
+
+/* ── RESPONSIVE ── */
+@media(max-width:640px){
+  body { padding: 12px; }
+  .kpi-value { font-size: 1.35rem; }
+  .analytics-grid { grid-template-columns: 1fr; }
+}
+</style>
 </head>
 <body>
-<div class="container">
+<div class="wrap">
 
-    <!-- HEADER -->
-    <div class="header">
-        <div class="header-left">
-            <h1>Gestionnaire de Change — Euro / CFA</h1>
-            <p>Synchronisation en temps réel — Firebase</p>
-        </div>
-        <div class="connection-status" id="connectionStatus">Connexion...</div>
+<!-- HEADER -->
+<div class="header">
+  <div class="brand">
+    <div class="brand-icon">₣</div>
+    <div>
+      <div class="brand-name">KANGA</div>
+      <div class="brand-sub">GESTIONNAIRE EURO · CFA</div>
     </div>
-
-    <!-- SOLDES -->
-    <div class="soldes">
-        <div class="solde-card euro">
-            <h3>Solde Euro</h3>
-            <div class="solde-amount" id="soldeEuro">0,00 €</div>
-        </div>
-        <div class="solde-card cfa">
-            <h3>Solde CFA</h3>
-            <div class="solde-amount" id="soldeCFA">0 CFA</div>
-        </div>
-        <div class="solde-card">
-            <h3>Transactions totales</h3>
-            <div class="solde-amount" id="totalTransactions">0</div>
-        </div>
-        <div class="solde-card">
-            <h3>Notes enregistrées</h3>
-            <div class="solde-amount" id="totalNotes">0</div>
-        </div>
-    </div>
-
-    <!-- ACTION BAR -->
-    <div class="action-bar">
-        <button class="btn btn-green" onclick="exportData()">↓ Exporter JSON</button>
-        <button class="btn btn-amber" onclick="document.getElementById('importFile').click()">↑ Importer JSON</button>
-        <input type="file" id="importFile" accept=".json" style="display:none;" onchange="importData(event)">
-    </div>
-
-    <!-- TABS -->
-    <div class="tabs">
-        <button class="tab active" onclick="switchTab('euro')">Euro</button>
-        <button class="tab" onclick="switchTab('cfa')">CFA</button>
-        <button class="tab" onclick="switchTab('stats')">Analyses</button>
-        <button class="tab" onclick="switchTab('notes')">Notes</button>
-    </div>
-
-    <!-- ===== EURO TAB ===== -->
-    <div id="euroTab" class="tab-content active">
-        <div class="filters-bar">
-            <div class="filter-group"><label>Recherche</label><input type="text" id="euroSearch" placeholder="Personne, remarque..." oninput="applyFilters('euro')"></div>
-            <div class="filter-group"><label>Opération</label><select id="euroFilterOp" onchange="applyFilters('euro')"><option value="">Toutes</option><option value="Entrée">Entrées</option><option value="Sortie">Sorties</option></select></div>
-            <div class="filter-group"><label>Date début</label><input type="date" id="euroFilterDateFrom" onchange="applyFilters('euro')"></div>
-            <div class="filter-group"><label>Date fin</label><input type="date" id="euroFilterDateTo" onchange="applyFilters('euro')"></div>
-            <button class="filter-reset" onclick="resetFilters('euro')">Réinitialiser</button>
-        </div>
-
-        <div class="form-section">
-            <h2>➕ Nouvelle transaction Euro</h2>
-            <form id="euroForm">
-                <div class="form-grid">
-                    <div class="form-group"><label>Date</label><input type="date" id="euroDate" required></div>
-                    <div class="form-group"><label>Opération</label><select id="euroOperation" required><option value="Entrée">Entrée</option><option value="Sortie">Sortie</option></select></div>
-                    <div class="form-group"><label>Entrée (€)</label><input type="number" id="euroEntree" step="0.01" min="0" placeholder="0,00"></div>
-                    <div class="form-group"><label>Sortie (€)</label><input type="number" id="euroSortie" step="0.01" min="0" placeholder="0,00"></div>
-                    <div class="form-group"><label>Personne</label><input type="text" id="euroPersonne" required placeholder="Nom"></div>
-                    <div class="form-group"><label>Taux de change</label><input type="number" id="euroTaux" step="0.01" placeholder="Optionnel"></div>
-                </div>
-                <div class="form-group"><label>Remarque</label><textarea id="euroRemarque" placeholder="Détails..."></textarea></div>
-                <button type="submit" class="btn btn-primary" style="margin-top:16px;">+ Ajouter transaction</button>
-            </form>
-        </div>
-
-        <div class="table-section">
-            <div class="table-header"><h2>Historique Euro</h2><span class="table-info" id="euroTableInfo">— lignes</span></div>
-            <div id="euroLoading" class="loading">Chargement...</div>
-            <div class="table-scroll">
-                <table><thead><tr><th>Date</th><th>Opération</th><th>Entrée</th><th>Sortie</th><th>Solde</th><th>Personne</th><th>Remarque</th><th>Actions</th></tr></thead><tbody id="euroTableBody"></tbody></table>
-            </div>
-        </div>
-    </div>
-
-    <!-- ===== CFA TAB ===== -->
-    <div id="cfaTab" class="tab-content">
-        <div class="filters-bar">
-            <div class="filter-group"><label>Recherche</label><input type="text" id="cfaSearch" placeholder="Personne, remarque..." oninput="applyFilters('cfa')"></div>
-            <div class="filter-group"><label>Opération</label><select id="cfaFilterOp" onchange="applyFilters('cfa')"><option value="">Toutes</option><option value="Entrée">Entrées</option><option value="Sortie">Sorties</option></select></div>
-            <div class="filter-group"><label>Date début</label><input type="date" id="cfaFilterDateFrom" onchange="applyFilters('cfa')"></div>
-            <div class="filter-group"><label>Date fin</label><input type="date" id="cfaFilterDateTo" onchange="applyFilters('cfa')"></div>
-            <button class="filter-reset" onclick="resetFilters('cfa')">Réinitialiser</button>
-        </div>
-
-        <div class="form-section">
-            <h2>➕ Nouvelle transaction CFA</h2>
-            <form id="cfaForm">
-                <div class="form-grid">
-                    <div class="form-group"><label>Date</label><input type="date" id="cfaDate" required></div>
-                    <div class="form-group"><label>Opération</label><select id="cfaOperation" required><option value="Entrée">Entrée</option><option value="Sortie">Sortie</option></select></div>
-                    <div class="form-group"><label>Entrée (CFA)</label><input type="number" id="cfaEntree" step="1" min="0" placeholder="0"></div>
-                    <div class="form-group"><label>Sortie (CFA)</label><input type="number" id="cfaSortie" step="1" min="0" placeholder="0"></div>
-                    <div class="form-group"><label>Personne</label><input type="text" id="cfaPersonne" required placeholder="Nom"></div>
-                    <div class="form-group"><label>Taux de change</label><input type="number" id="cfaTaux" step="0.01" placeholder="Optionnel"></div>
-                </div>
-                <div class="form-group"><label>Remarque</label><textarea id="cfaRemarque" placeholder="Détails..."></textarea></div>
-                <button type="submit" class="btn btn-primary" style="margin-top:16px;">+ Ajouter transaction</button>
-            </form>
-        </div>
-
-        <div class="table-section">
-            <div class="table-header"><h2>Historique CFA</h2><span class="table-info" id="cfaTableInfo">— lignes</span></div>
-            <div id="cfaLoading" class="loading">Chargement...</div>
-            <div class="table-scroll">
-                <table><thead><tr><th>Date</th><th>Opération</th><th>Entrée</th><th>Sortie</th><th>Solde</th><th>Personne</th><th>Remarque</th><th>Actions</th></tr></thead><tbody id="cfaTableBody"></tbody></table>
-            </div>
-        </div>
-    </div>
-
-    <!-- ===== STATS TAB ===== -->
-    <div id="statsTab" class="tab-content">
-        <div class="month-select-row">
-            <label>Filtrer par mois :</label>
-            <select id="statsMonthSelect" onchange="renderStats()">
-                <option value="">Tous les mois</option>
-            </select>
-            <select id="statsTypeSelect" onchange="renderStats()">
-                <option value="euro">Euro (€)</option>
-                <option value="cfa">CFA (FCFA)</option>
-            </select>
-        </div>
-        <div class="stats-grid" id="statsCards"></div>
-        <div class="monthly-table-wrap">
-            <h2>Détail par mois</h2>
-            <div class="table-scroll"><table id="monthlyTable"><thead><tr><th>Mois</th><th>Nb transactions</th><th>Total entrées</th><th>Total sorties</th><th>Variation nette</th></tr></thead><tbody id="monthlyTableBody"></tbody></table></div>
-        </div>
-        <div class="monthly-table-wrap">
-            <h2>Top personnes</h2>
-            <div class="table-scroll"><table><thead><tr><th>Personne</th><th>Nb transactions</th><th>Total entrées</th><th>Total sorties</th><th>Balance nette</th></tr></thead><tbody id="personnesTableBody"></tbody></table></div>
-        </div>
-    </div>
-
-    <!-- ===== NOTES TAB ===== -->
-    <div id="notesTab" class="tab-content">
-        <div class="notes-grid">
-            <div class="notes-list-panel">
-                <div class="notes-list-header"><h2>📓 Notes</h2><button class="btn btn-primary" style="padding:6px 14px;" onclick="newNote()">+ Nouvelle</button></div>
-                <div class="notes-search"><input type="text" placeholder="Rechercher une note..." id="notesSearch" oninput="renderNotesList()"></div>
-                <div class="notes-list" id="notesList"><div class="note-empty-list">Aucune note</div></div>
-            </div>
-            <div class="notes-editor-panel">
-                <div class="note-no-selection" id="noteNoSelection"><div class="note-no-selection-icon">📝</div><p>Sélectionnez une note ou créez-en une nouvelle</p></div>
-                <div id="noteEditor" style="display:none; flex-direction:column; flex:1;">
-                    <div class="editor-toolbar">
-                        <div class="editor-toolbar-left"><input type="text" class="note-title-input" id="noteTitleInput" placeholder="Titre de la note" oninput="autoSaveNote()"></div>
-                        <button class="delete-btn" onclick="deleteCurrentNote()">Supprimer</button>
-                    </div>
-                    <textarea class="note-content-area" id="noteContentArea" placeholder="Écrivez votre note ici..." oninput="autoSaveNote()"></textarea>
-                    <div class="editor-status"><span id="noteEditorDate">—</span><span id="noteEditorStatus">—</span></div>
-                </div>
-            </div>
-        </div>
-    </div>
+  </div>
+  <div class="header-right">
+    <div class="pill pill-sync" id="connPill"><div class="dot pulse"></div><span id="connText">Connexion...</span></div>
+  </div>
 </div>
+
+<!-- BACKUP BAR -->
+<div class="backup-bar">
+  <div class="backup-left">
+    <div class="backup-shield">🛡️</div>
+    <div>
+      <div class="backup-label">Sauvegarde miroir Firebase</div>
+      <div class="backup-sub" id="backupSub">Initialisation...</div>
+    </div>
+  </div>
+  <div class="backup-actions">
+    <span class="pill" id="mirrorPill" style="border-color:rgba(107,114,128,.25);background:rgba(107,114,128,.06);color:#6b7280;font-size:.7rem;">⏳ En attente</span>
+    <button class="btn-sm btn-gold"   onclick="syncMirror(true)">☁️ Sauvegarder</button>
+    <button class="btn-sm btn-blue"   onclick="openHistory()">📋 Historique</button>
+    <button class="btn-sm btn-purple" onclick="openRestore()">↩️ Restaurer</button>
+  </div>
+</div>
+
+<!-- KPI -->
+<div class="kpi-grid">
+  <div class="kpi kpi-blue" data-icon="💶">
+    <div class="kpi-label">Solde Euro</div>
+    <div class="kpi-value" id="kpiEuro">—</div>
+    <div class="kpi-sub" id="kpiEuroSub">—</div>
+  </div>
+  <div class="kpi kpi-gold" data-icon="💵">
+    <div class="kpi-label">Solde CFA</div>
+    <div class="kpi-value" id="kpiCFA">—</div>
+    <div class="kpi-sub" id="kpiCFASub">—</div>
+  </div>
+  <div class="kpi kpi-green" data-icon="📈">
+    <div class="kpi-label">Total Entrées Euro</div>
+    <div class="kpi-value" id="kpiEIn">—</div>
+    <div class="kpi-sub" id="kpiEInSub">—</div>
+  </div>
+  <div class="kpi kpi-red" data-icon="📉">
+    <div class="kpi-label">Total Sorties Euro</div>
+    <div class="kpi-value" id="kpiEOut">—</div>
+    <div class="kpi-sub" id="kpiEOutSub">—</div>
+  </div>
+  <div class="kpi kpi-purple" data-icon="🔄">
+    <div class="kpi-label">Transactions totales</div>
+    <div class="kpi-value" id="kpiTx">—</div>
+    <div class="kpi-sub" id="kpiTxSub">—</div>
+  </div>
+  <div class="kpi kpi-amber" data-icon="📓">
+    <div class="kpi-label">Notes</div>
+    <div class="kpi-value" id="kpiNotes">—</div>
+    <div class="kpi-sub">mémos enregistrés</div>
+  </div>
+</div>
+
+<!-- TABS -->
+<div class="tabs-wrap">
+  <button class="tab active" onclick="switchTab('euro')">💶 Euro</button>
+  <button class="tab" onclick="switchTab('cfa')">💵 CFA</button>
+  <button class="tab" onclick="switchTab('analytics')">📊 Analyses</button>
+  <button class="tab" onclick="switchTab('notes')">📓 Notes</button>
+</div>
+
+<!-- ══════════ EURO TAB ══════════ -->
+<div id="euroTab" class="tab-content active">
+  <div class="filters">
+    <div class="fg"><label>Recherche</label><input type="text" id="euroSrch" placeholder="Nom, remarque..." oninput="applyFilters('euro')"></div>
+    <div class="fg"><label>Opération</label>
+      <select id="euroFOp" onchange="applyFilters('euro')">
+        <option value="">Toutes</option><option value="Entrée">Entrées</option><option value="Sortie">Sorties</option>
+      </select>
+    </div>
+    <div class="fg"><label>Date début</label><input type="date" id="euroFFrom" onchange="applyFilters('euro')"></div>
+    <div class="fg"><label>Date fin</label><input type="date" id="euroFTo" onchange="applyFilters('euro')"></div>
+    <button class="btn-reset" onclick="resetFilters('euro')">✕ Réinitialiser</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span>➕</span> Nouvelle transaction Euro</div>
+    <form id="euroForm">
+      <div class="form-grid">
+        <div class="fgroup"><label>Date</label><input type="date" id="eDate" required></div>
+        <div class="fgroup"><label>Opération</label>
+          <select id="eOp" required><option value="Entrée">Entrée</option><option value="Sortie">Sortie</option></select>
+        </div>
+        <div class="fgroup"><label>Entrée (€)</label><input type="number" id="eIn" step="0.01" min="0" placeholder="0.00"></div>
+        <div class="fgroup"><label>Sortie (€)</label><input type="number" id="eOut" step="0.01" min="0" placeholder="0.00"></div>
+        <div class="fgroup"><label>Personne</label><input type="text" id="ePerson" required placeholder="Nom"></div>
+        <div class="fgroup"><label>Taux</label><input type="number" id="eRate" step="0.01" placeholder="Optionnel"></div>
+      </div>
+      <div class="fgroup"><label>Remarque</label><textarea id="eNote" placeholder="Détails..."></textarea></div>
+      <button type="submit" class="btn btn-primary" style="margin-top:14px;">+ Ajouter</button>
+    </form>
+  </div>
+
+  <div class="table-card">
+    <div class="table-head"><h2>Historique Euro</h2><span class="table-count" id="euroCount">—</span></div>
+    <div id="euroLoading" class="loading">Chargement...</div>
+    <div class="table-scroll">
+      <table><thead><tr><th>Date</th><th>Op.</th><th>Entrée</th><th>Sortie</th><th>Solde cumulé</th><th>Personne</th><th>Remarque</th><th>Actions</th></tr></thead>
+      <tbody id="euroBody"></tbody></table>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn btn-green-o" onclick="exportData()">↓ Exporter JSON</button>
+    <button class="btn btn-amber-o" onclick="document.getElementById('impFile').click()">↑ Importer JSON</button>
+    <input type="file" id="impFile" accept=".json" style="display:none" onchange="importData(event)">
+  </div>
+</div>
+
+<!-- ══════════ CFA TAB ══════════ -->
+<div id="cfaTab" class="tab-content">
+  <div class="filters">
+    <div class="fg"><label>Recherche</label><input type="text" id="cfaSrch" placeholder="Nom, remarque..." oninput="applyFilters('cfa')"></div>
+    <div class="fg"><label>Opération</label>
+      <select id="cfaFOp" onchange="applyFilters('cfa')">
+        <option value="">Toutes</option><option value="Entrée">Entrées</option><option value="Sortie">Sorties</option>
+      </select>
+    </div>
+    <div class="fg"><label>Date début</label><input type="date" id="cfaFFrom" onchange="applyFilters('cfa')"></div>
+    <div class="fg"><label>Date fin</label><input type="date" id="cfaFTo" onchange="applyFilters('cfa')"></div>
+    <button class="btn-reset" onclick="resetFilters('cfa')">✕ Réinitialiser</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span>➕</span> Nouvelle transaction CFA</div>
+    <form id="cfaForm">
+      <div class="form-grid">
+        <div class="fgroup"><label>Date</label><input type="date" id="cDate" required></div>
+        <div class="fgroup"><label>Opération</label>
+          <select id="cOp" required><option value="Entrée">Entrée</option><option value="Sortie">Sortie</option></select>
+        </div>
+        <div class="fgroup"><label>Entrée (CFA)</label><input type="number" id="cIn" step="1" min="0" placeholder="0"></div>
+        <div class="fgroup"><label>Sortie (CFA)</label><input type="number" id="cOut" step="1" min="0" placeholder="0"></div>
+        <div class="fgroup"><label>Personne</label><input type="text" id="cPerson" required placeholder="Nom"></div>
+        <div class="fgroup"><label>Taux</label><input type="number" id="cRate" step="0.01" placeholder="Optionnel"></div>
+      </div>
+      <div class="fgroup"><label>Remarque</label><textarea id="cNote" placeholder="Détails..."></textarea></div>
+      <button type="submit" class="btn btn-primary" style="margin-top:14px;">+ Ajouter</button>
+    </form>
+  </div>
+
+  <div class="table-card">
+    <div class="table-head"><h2>Historique CFA</h2><span class="table-count" id="cfaCount">—</span></div>
+    <div id="cfaLoading" class="loading">Chargement...</div>
+    <div class="table-scroll">
+      <table><thead><tr><th>Date</th><th>Op.</th><th>Entrée</th><th>Sortie</th><th>Solde cumulé</th><th>Personne</th><th>Remarque</th><th>Actions</th></tr></thead>
+      <tbody id="cfaBody"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ ANALYTICS TAB ══════════ -->
+<div id="analyticsTab" class="tab-content">
+  <div class="table-card" style="margin-bottom:20px;border-radius:var(--r-lg);">
+    <div class="selector-row">
+      <label>Devise :</label>
+      <select id="aType" onchange="renderAnalytics()"><option value="euro">Euro (€)</option><option value="cfa">CFA (FCFA)</option></select>
+      <label>Mois :</label>
+      <select id="aMonth" onchange="renderAnalytics()"><option value="">Tous</option></select>
+    </div>
+  </div>
+
+  <!-- KPI analytiques -->
+  <div class="kpi-grid" id="aKpis" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:20px;"></div>
+
+  <div class="analytics-grid">
+    <!-- Top personnes (entrées) -->
+    <div class="chart-card">
+      <div class="chart-title"><span>👥</span> Top personnes — Entrées</div>
+      <div class="bar-chart" id="chartPersonIn"></div>
+    </div>
+    <!-- Top personnes (sorties) -->
+    <div class="chart-card">
+      <div class="chart-title"><span>👥</span> Top personnes — Sorties</div>
+      <div class="bar-chart" id="chartPersonOut"></div>
+    </div>
+  </div>
+
+  <div class="analytics-grid">
+    <!-- Tendance mensuelle SVG -->
+    <div class="chart-card" style="grid-column:1/-1;">
+      <div class="chart-title"><span>📈</span> Tendance mensuelle — Entrées vs Sorties</div>
+      <div id="trendChart"></div>
+    </div>
+  </div>
+
+  <!-- Tableau mensuel détaillé -->
+  <div class="table-card" style="margin-bottom:20px;">
+    <div class="table-head"><h2>📅 Détail par mois</h2></div>
+    <div class="table-scroll">
+      <table class="mini-table">
+        <thead><tr><th>Mois</th><th>Transactions</th><th>Entrées</th><th>Sorties</th><th>Net</th><th>Ratio E/S</th></tr></thead>
+        <tbody id="monthBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Tableau personnes -->
+  <div class="table-card">
+    <div class="table-head"><h2>🏆 Classement personnes</h2></div>
+    <div class="table-scroll">
+      <table class="mini-table">
+        <thead><tr><th>Personne</th><th>Transactions</th><th>Entrées</th><th>Sorties</th><th>Balance nette</th><th>% du total</th></tr></thead>
+        <tbody id="personBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ NOTES TAB ══════════ -->
+<div id="notesTab" class="tab-content">
+  <div class="notes-layout">
+    <div class="notes-list-panel">
+      <div class="nlp-head">
+        <h3>📓 Notes</h3>
+        <button class="btn-sm btn-gold" onclick="newNote()">+ Nouveau</button>
+      </div>
+      <div class="notes-search"><input type="text" id="noteSearch" placeholder="Rechercher..." oninput="renderNotesList()"></div>
+      <div class="notes-list" id="notesList"><div class="note-empty">Aucune note</div></div>
+    </div>
+    <div class="notes-editor-panel">
+      <div class="ne-empty" id="neEmpty"><div class="ne-empty-icon">📝</div><p>Sélectionnez une note ou créez-en une nouvelle</p></div>
+      <div id="neEditor" style="display:none;flex-direction:column;flex:1;">
+        <div class="ne-toolbar">
+          <input type="text" class="ne-title" id="neTitle" placeholder="Titre..." oninput="autoSaveNote()">
+          <button class="act-btn act-del" onclick="deleteNote()">Supprimer</button>
+        </div>
+        <textarea class="ne-body" id="neBody" placeholder="Écrivez ici..." oninput="autoSaveNote()"></textarea>
+        <div class="ne-status"><span id="neDate">—</span><span id="neStatus">—</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /wrap -->
 
 <!-- EDIT MODAL -->
 <div class="modal-overlay" id="editModal">
-    <div class="modal">
-        <div class="modal-header"><h2>Modifier la transaction</h2><button class="close-btn" onclick="closeEditModal()">×</button></div>
-        <form id="editForm">
-            <input type="hidden" id="editType"><input type="hidden" id="editIndex">
-            <div class="form-grid">
-                <div class="form-group"><label>Date</label><input type="date" id="editDate" required></div>
-                <div class="form-group"><label>Opération</label><select id="editOperation" required><option value="Entrée">Entrée</option><option value="Sortie">Sortie</option></select></div>
-                <div class="form-group"><label>Entrée</label><input type="number" id="editEntree" step="0.01" min="0"></div>
-                <div class="form-group"><label>Sortie</label><input type="number" id="editSortie" step="0.01" min="0"></div>
-                <div class="form-group"><label>Personne</label><input type="text" id="editPersonne" required></div>
-                <div class="form-group"><label>Taux</label><input type="number" id="editTaux" step="0.01" placeholder="Optionnel"></div>
-            </div>
-            <div class="form-group"><label>Remarque</label><textarea id="editRemarque"></textarea></div>
-            <div style="display:flex; gap:12px; margin-top:20px;"><button type="submit" class="btn btn-primary" style="flex:1;">Enregistrer</button><button type="button" class="btn" onclick="closeEditModal()" style="flex:1;">Annuler</button></div>
-        </form>
-    </div>
+  <div class="modal">
+    <div class="modal-header"><h2>✏️ Modifier la transaction</h2><button class="close-btn" onclick="closeEdit()">×</button></div>
+    <form id="editForm">
+      <input type="hidden" id="editType"><input type="hidden" id="editIdx">
+      <div class="form-grid">
+        <div class="fgroup"><label>Date</label><input type="date" id="edDate" required></div>
+        <div class="fgroup"><label>Opération</label><select id="edOp" required><option value="Entrée">Entrée</option><option value="Sortie">Sortie</option></select></div>
+        <div class="fgroup"><label>Entrée</label><input type="number" id="edIn" step="0.01" min="0"></div>
+        <div class="fgroup"><label>Sortie</label><input type="number" id="edOut" step="0.01" min="0"></div>
+        <div class="fgroup"><label>Personne</label><input type="text" id="edPerson" required></div>
+        <div class="fgroup"><label>Taux</label><input type="number" id="edRate" step="0.01" placeholder="Optionnel"></div>
+      </div>
+      <div class="fgroup"><label>Remarque</label><textarea id="edNote"></textarea></div>
+      <div style="display:flex;gap:10px;margin-top:18px;">
+        <button type="submit" class="btn btn-primary" style="flex:1;">Enregistrer</button>
+        <button type="button" class="btn" onclick="closeEdit()" style="flex:1;">Annuler</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- HISTORY MODAL -->
+<div class="modal-overlay" id="histModal">
+  <div class="modal">
+    <div class="modal-header"><h2>📋 Historique des sauvegardes</h2><button class="close-btn" onclick="closeHistory()">×</button></div>
+    <p style="font-size:.76rem;color:var(--text2);margin-bottom:14px;line-height:1.6;">
+      Chaque sauvegarde est créée <strong>automatiquement à chaque nouvelle transaction</strong> et lors d'une sauvegarde manuelle.<br>
+      Maximum <strong>10 sauvegardes</strong> conservées.
+    </p>
+    <div id="histList"></div>
+  </div>
+</div>
+
+<!-- RESTORE MODAL -->
+<div class="modal-overlay" id="restModal">
+  <div class="modal">
+    <div class="modal-header"><h2>↩️ Restaurer depuis le miroir</h2><button class="close-btn" onclick="closeRestore()">×</button></div>
+    <p style="font-size:.76rem;color:var(--text2);margin-bottom:14px;line-height:1.6;">
+      Choisissez une sauvegarde. Les données actuelles seront <strong>remplacées</strong>.
+    </p>
+    <div id="restList"></div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
 
 <script>
-// =================== FIREBASE ===================
-const firebaseConfig = {
-    apiKey: "AIzaSyBOze4uwJHuRd-UVOcLemRn1AFxA93UBcQ",
-    authDomain: "gestion-change.firebaseapp.com",
-    projectId: "gestion-change",
-    storageBucket: "gestion-change.firebasestorage.app",
-    messagingSenderId: "773358376046",
-    appId: "1:773358376046:web:c4de3857d99b6c9608027f",
-    databaseURL: "https://gestion-change-default-rtdb.europe-west1.firebasedatabase.app/"
+// ══════════════════════════════════════════════
+//  FIREBASE — BASE PRINCIPALE
+// ══════════════════════════════════════════════
+const mainCfg = {
+  apiKey:"AIzaSyBOze4uwJHuRd-UVOcLemRn1AFxA93UBcQ",
+  authDomain:"gestion-change.firebaseapp.com",
+  projectId:"gestion-change",
+  storageBucket:"gestion-change.firebasestorage.app",
+  messagingSenderId:"773358376046",
+  appId:"1:773358376046:web:c4de3857d99b6c9608027f",
+  databaseURL:"https://gestion-change-default-rtdb.europe-west1.firebasedatabase.app/"
 };
-firebase.initializeApp(firebaseConfig);
-const database = firebase.database();
-
-let euroTransactions = [], cfaTransactions = [], notes = [];
-let currentNoteId = null, autoSaveTimer = null, lastSyncTime = null;
-
-function showToast(msg, type='') {
-    const t = document.getElementById('toast');
-    t.textContent = msg;
-    t.className = 'toast show ' + type;
-    setTimeout(() => t.className = 'toast', 2500);
-}
-
-function updateConnectionStatus(status, text) {
-    const el = document.getElementById('connectionStatus');
-    el.textContent = text;
-    el.className = 'connection-status ' + status;
-}
-
-function saveToFirebase() {
-    updateConnectionStatus('syncing', 'Sync...');
-    database.ref().update({ '/euroTransactions': euroTransactions, '/cfaTransactions': cfaTransactions })
-        .then(() => { lastSyncTime = new Date(); updateConnectionStatus('online', '✓ ' + lastSyncTime.toLocaleTimeString()); })
-        .catch(err => { console.error(err); updateConnectionStatus('offline', '✗ Erreur sync'); });
-}
-function saveNotesToFirebase() { database.ref('/notes').set(notes).catch(err => console.error(err)); }
-
-function listenToFirebase() {
-    updateConnectionStatus('syncing', 'Connexion...');
-    database.ref('euroTransactions').on('value', snap => { if(snap.exists()) euroTransactions = snap.val() || []; document.getElementById('euroLoading').style.display = 'none'; updateDisplay(); });
-    database.ref('cfaTransactions').on('value', snap => { if(snap.exists()) cfaTransactions = snap.val() || []; document.getElementById('cfaLoading').style.display = 'none'; updateDisplay(); });
-    database.ref('notes').on('value', snap => { notes = snap.exists() ? snap.val() : []; renderNotesList(); document.getElementById('totalNotes').textContent = notes.length; });
-    database.ref('.info/connected').on('value', snap => { updateConnectionStatus(snap.val() === true ? 'online' : 'offline', snap.val() === true ? '✓ Connecté' : '✗ Hors ligne'); });
-}
-
-const historicalData = {
-    euro: [{date:'2024-01-01',operation:'Sortie',entree:0,sortie:0,personne:'Youssouf / Abakar',remarque:''},{date:'2024-01-02',operation:'Entrée',entree:3000,sortie:0,personne:'Issa',remarque:''},{date:'2024-01-03',operation:'Sortie',entree:0,sortie:23,personne:'Issa',remarque:'Différence taux 670 et 675'},{date:'2024-01-04',operation:'Sortie',entree:0,sortie:1482,personne:'Ibni',remarque:''},{date:'2024-01-05',operation:'Sortie',entree:0,sortie:72,personne:'Ibni',remarque:''},{date:'2024-01-06',operation:'Entrée',entree:148,sortie:0,personne:'Issa',remarque:''},{date:'2024-01-07',operation:'Entrée',entree:1874,sortie:0,personne:'Issa',remarque:''},{date:'2024-01-08',operation:'Entrée',entree:74,sortie:0,personne:'Issa',remarque:'Médicament'},{date:'2024-01-09',operation:'Sortie',entree:0,sortie:512,personne:'Berdei',remarque:'Médicament'},{date:'2024-01-10',operation:'Sortie',entree:0,sortie:701,personne:'Soulou',remarque:'Médicament'},{date:'2024-01-11',operation:'Sortie',entree:0,sortie:47,personne:'Youssouf',remarque:'Part Youssouf pharma'},{date:'2024-01-12',operation:'Entrée',entree:224,sortie:0,personne:'Moi',remarque:'100000/3 = 33 333,333'},{date:'2024-01-13',operation:'Entrée',entree:74,sortie:0,personne:'Issa',remarque:'33333/700 = 47,619'},{date:'2024-01-14',operation:'Entrée',entree:3000,sortie:0,personne:'Faris',remarque:'SOLDE FINAL'},{date:'2024-01-15',operation:'Sortie',entree:0,sortie:2421.4,personne:'Youssouf pharmacie',remarque:'Valise commande'},{date:'2024-01-16',operation:'Entrée',entree:100,sortie:0,personne:'Issa',remarque:''},{date:'2024-01-17',operation:'Sortie',entree:0,sortie:2200,personne:'Retrait',remarque:'Retrait espèce'},{date:'2024-01-18',operation:'Entrée',entree:3315,sortie:0,personne:'Issa',remarque:'4000$ Issa'},{date:'2024-01-19',operation:'Sortie',entree:0,sortie:1000,personne:'Youssouf',remarque:'Youssouf'},{date:'2024-01-20',operation:'Entrée',entree:3000,sortie:0,personne:'Issa',remarque:''},{date:'2024-01-21',operation:'Entrée',entree:794,sortie:0,personne:'Ms Ibni',remarque:''},{date:'2024-01-22',operation:'Entrée',entree:300,sortie:0,personne:'Ms ibni',remarque:''},{date:'2024-01-23',operation:'Entrée',entree:100,sortie:0,personne:'Issa',remarque:''},{date:'2024-01-24',operation:'Sortie',entree:0,sortie:70,personne:'Issa',remarque:'Bénéfice Issa'}],
-    cfa: [{date:'2024-01-01',operation:'Entrée',entree:4865000,sortie:0,personne:'Capital initial',remarque:''},{date:'2024-01-02',operation:'Sortie',entree:0,sortie:400000,personne:'You',remarque:''},{date:'2024-01-03',operation:'Sortie',entree:0,sortie:350000,personne:'Abakar Doungous',remarque:''},{date:'2024-01-04',operation:'Sortie',entree:0,sortie:2020000,personne:'Issa',remarque:''},{date:'2024-01-05',operation:'Sortie',entree:0,sortie:100000,personne:'Moi',remarque:''},{date:'2024-01-06',operation:'Entrée',entree:1030000,sortie:0,personne:'Ibni Alhadj',remarque:''},{date:'2024-01-07',operation:'Sortie',entree:0,sortie:10000,personne:'Abbas',remarque:'Retrait Abbas'},{date:'2024-01-08',operation:'Entrée',entree:50000,sortie:0,personne:'Ibni',remarque:''},{date:'2024-01-09',operation:'Sortie',entree:0,sortie:100000,personne:'Issa',remarque:''},{date:'2024-01-10',operation:'Sortie',entree:0,sortie:1265000,personne:'Issa',remarque:''},{date:'2024-01-11',operation:'Sortie',entree:0,sortie:50000,personne:'Issa',remarque:''},{date:'2024-01-12',operation:'Sortie',entree:0,sortie:10000,personne:'Abbas',remarque:'Retrait Abbas'},{date:'2024-01-13',operation:'Sortie',entree:0,sortie:50000,personne:'Moi',remarque:''},{date:'2024-01-14',operation:'Entrée',entree:460000,sortie:0,personne:'Youssouf pharmacie',remarque:''},{date:'2024-01-15',operation:'Sortie',entree:0,sortie:50000,personne:'Issa',remarque:''},{date:'2024-01-16',operation:'Sortie',entree:0,sortie:10000,personne:'Abbas',remarque:'Retrait Abbas'},{date:'2024-01-17',operation:'Sortie',entree:0,sortie:67500,personne:'Issa',remarque:''},{date:'2024-01-18',operation:'Sortie',entree:0,sortie:532000,personne:'Ms Ibni',remarque:''},{date:'2024-01-19',operation:'Sortie',entree:0,sortie:67000,personne:'Issa',remarque:''}]
+// ══════════════════════════════════════════════
+//  FIREBASE — BASE MIROIR
+// ══════════════════════════════════════════════
+const mirrorCfg = {
+  apiKey:"AIzaSyAx4BZoKxkD4yMI0RerQLNvgo1dGLtaGIE",
+  authDomain:"kanga-backup.firebaseapp.com",
+  databaseURL:"https://kanga-backup-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId:"kanga-backup",
+  storageBucket:"kanga-backup.firebasestorage.app",
+  messagingSenderId:"483789075229",
+  appId:"1:483789075229:web:0c4acfec76f1459d3467f4"
 };
-function loadHistoricalData() { euroTransactions = [...historicalData.euro]; cfaTransactions = [...historicalData.cfa]; saveToFirebase(); }
 
+const mainApp   = firebase.initializeApp(mainCfg,   'main');
+const mirrorApp = firebase.initializeApp(mirrorCfg, 'mirror');
+const db        = firebase.database(mainApp);
+const mirrorDb  = firebase.database(mirrorApp);
+
+let euroT = [], cfaT = [], notes = [];
+let currentNote = null, noteTimer = null;
+const MAX_SNAPS = 10;
+
+// ── TOAST ──
+function toast(msg, type='') {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.className = 'toast show ' + type;
+  setTimeout(() => el.className = 'toast', 3000);
+}
+
+// ── CONNECTION ──
+function setConn(state, text) {
+  const p = document.getElementById('connPill');
+  const t = document.getElementById('connText');
+  t.textContent = text;
+  p.className = state === 'online' ? 'pill pill-conn'
+              : state === 'sync'   ? 'pill pill-sync'
+              : 'pill pill-disco';
+}
+
+// ── MIRROR STATUS ──
+function setMirror(state, text) {
+  const p = document.getElementById('mirrorPill');
+  p.textContent = text;
+  const styles = {
+    ok:    'border-color:rgba(5,150,105,.3);background:rgba(5,150,105,.08);color:#059669',
+    sync:  'border-color:rgba(217,119,6,.3);background:rgba(217,119,6,.08);color:#d97706',
+    error: 'border-color:rgba(220,38,38,.3);background:rgba(220,38,38,.08);color:#dc2626',
+    idle:  'border-color:rgba(107,114,128,.25);background:rgba(107,114,128,.06);color:#6b7280'
+  };
+  p.style.cssText = (styles[state]||styles.idle) + ';font-size:.7rem;display:inline-flex;align-items:center;gap:6px;padding:6px 13px;border-radius:40px;border-style:solid;';
+}
+
+// ════════════════════════════════════════════
+//  SAUVEGARDE MIROIR
+//  → déclenchée automatiquement à chaque
+//    nouvelle transaction + manuellement
+// ════════════════════════════════════════════
+async function syncMirror(manual = false) {
+  setMirror('sync', '⏳ Sauvegarde...');
+  const now    = new Date();
+  const key    = now.toISOString().replace(/[:.]/g, '-'); // clé unique
+  const snap   = {
+    savedAt:   now.toISOString(),
+    label:     manual ? 'Manuel' : 'Auto',
+    euroCount: euroT.length,
+    cfaCount:  cfaT.length,
+    notesCount:notes.length,
+    euroTransactions: euroT,
+    cfaTransactions:  cfaT,
+    notes: notes
+  };
+  try {
+    await mirrorDb.ref(`/history/${key}`).set(snap);
+    await mirrorDb.ref('/latest').set({ savedAt: snap.savedAt, label: snap.label, euroCount: snap.euroCount, cfaCount: snap.cfaCount });
+    await pruneSnaps();
+    const ts = now.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
+    const ds = now.toLocaleDateString('fr-FR');
+    setMirror('ok', `✅ ${ts}`);
+    document.getElementById('backupSub').innerHTML =
+      `Dernière sauvegarde : <b>${ds} à ${ts}</b> · ${manual ? 'Manuelle' : 'Auto (nouvelle transaction)'}`;
+    if (manual) toast('☁️ Sauvegarde miroir créée', 'ok');
+  } catch(e) {
+    console.error(e);
+    setMirror('error', '✗ Échec');
+    if (manual) toast('Erreur sauvegarde miroir', 'err');
+  }
+}
+
+async function pruneSnaps() {
+  const snap = await mirrorDb.ref('/history').once('value');
+  if (!snap.exists()) return;
+  const keys = Object.keys(snap.val()).sort();
+  if (keys.length > MAX_SNAPS) {
+    const upd = {};
+    keys.slice(0, keys.length - MAX_SNAPS).forEach(k => upd[`/history/${k}`] = null);
+    await mirrorDb.ref().update(upd);
+  }
+}
+
+async function loadHistory() {
+  const snap = await mirrorDb.ref('/history').once('value');
+  if (!snap.exists()) return [];
+  return Object.entries(snap.val())
+    .map(([k,v]) => ({ key: k, ...v }))
+    .sort((a,b) => new Date(b.savedAt) - new Date(a.savedAt));
+}
+
+function renderSnapList(list, containerId, withBtn) {
+  const el = document.getElementById(containerId);
+  if (!list.length) { el.innerHTML = '<div class="snap-empty">Aucune sauvegarde disponible.<br>Ajoutez une transaction pour créer la première.</div>'; return; }
+  el.innerHTML = list.map(s => {
+    const d    = new Date(s.savedAt);
+    const date = d.toLocaleDateString('fr-FR', { day:'2-digit', month:'long', year:'numeric' });
+    const time = d.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
+    const tag  = s.label === 'Auto'
+      ? '<span class="snap-tag snap-tag-auto">Auto</span>'
+      : '<span class="snap-tag snap-tag-manual">Manuel</span>';
+    return `<div class="snap-item">
+      <div class="snap-info">
+        <div class="snap-date">${date} · ${time} ${tag}</div>
+        <div class="snap-meta">💶 ${s.euroCount} Euro · 💵 ${s.cfaCount} CFA · 📓 ${s.notesCount} notes</div>
+      </div>
+      ${withBtn ? `<button class="snap-restore-btn" onclick="confirmRestore('${s.key}','${date} à ${time}')">↩️ Restaurer</button>` : ''}
+    </div>`;
+  }).join('');
+}
+
+async function openHistory() {
+  document.getElementById('histModal').classList.add('open');
+  document.getElementById('histList').innerHTML = '<div class="loading">Chargement...</div>';
+  renderSnapList(await loadHistory(), 'histList', true);
+}
+function closeHistory() { document.getElementById('histModal').classList.remove('open'); }
+
+async function openRestore() {
+  document.getElementById('restModal').classList.add('open');
+  document.getElementById('restList').innerHTML = '<div class="loading">Chargement...</div>';
+  renderSnapList(await loadHistory(), 'restList', true);
+}
+function closeRestore() { document.getElementById('restModal').classList.remove('open'); }
+
+async function confirmRestore(key, label) {
+  if (!confirm(`Restaurer les données du :\n${label}\n\nLes données actuelles seront remplacées. Continuer ?`)) return;
+  setMirror('sync', '⏳ Restauration...');
+  try {
+    const snap = await mirrorDb.ref(`/history/${key}`).once('value');
+    if (!snap.exists()) { toast('Snapshot introuvable', 'err'); return; }
+    const d = snap.val();
+    euroT = d.euroTransactions || [];
+    cfaT  = d.cfaTransactions  || [];
+    notes = d.notes            || [];
+    await db.ref().update({ '/euroTransactions': euroT, '/cfaTransactions': cfaT });
+    await db.ref('/notes').set(notes);
+    updateAll();
+    renderNotesList();
+    closeHistory(); closeRestore();
+    setMirror('ok', '✅ Restauré');
+    toast('✅ Données restaurées avec succès', 'ok');
+  } catch(e) {
+    console.error(e); setMirror('error', '✗ Échec'); toast('Erreur restauration', 'err');
+  }
+}
+
+// ════════════════════════════════════════════
+//  BASE PRINCIPALE — LECTURE / ÉCRITURE
+// ════════════════════════════════════════════
+function saveToDB() {
+  setConn('sync', 'Sync...');
+  db.ref().update({ '/euroTransactions': euroT, '/cfaTransactions': cfaT })
+    .then(() => setConn('online', '✓ Connecté'))
+    .catch(() => { setConn('offline', '✗ Hors ligne'); toast('Erreur de synchronisation', 'err'); });
+}
+function saveNotes() { db.ref('/notes').set(notes).catch(e => console.error(e)); }
+
+function listen() {
+  setConn('sync', 'Connexion...');
+  db.ref('euroTransactions').on('value', s => {
+    if (s.exists()) euroT = s.val() || [];
+    document.getElementById('euroLoading').style.display = 'none';
+    updateAll();
+  });
+  db.ref('cfaTransactions').on('value', s => {
+    if (s.exists()) cfaT = s.val() || [];
+    document.getElementById('cfaLoading').style.display = 'none';
+    updateAll();
+  });
+  db.ref('notes').on('value', s => {
+    notes = s.exists() ? s.val() : [];
+    renderNotesList();
+    document.getElementById('kpiNotes').textContent = notes.length;
+  });
+  db.ref('.info/connected').on('value', s => {
+    setConn(s.val() ? 'online' : 'offline', s.val() ? '✓ Connecté' : '✗ Hors ligne');
+  });
+}
+
+// ════════════════════════════════════════════
+//  DONNÉES INITIALES
+// ════════════════════════════════════════════
+const HD = {
+  euro:[
+    {date:'2024-01-01',operation:'Sortie',entree:0,sortie:0,personne:'Youssouf / Abakar',remarque:''},
+    {date:'2024-01-02',operation:'Entrée',entree:3000,sortie:0,personne:'Issa',remarque:''},
+    {date:'2024-01-03',operation:'Sortie',entree:0,sortie:23,personne:'Issa',remarque:'Différence taux 670 et 675'},
+    {date:'2024-01-04',operation:'Sortie',entree:0,sortie:1482,personne:'Ibni',remarque:''},
+    {date:'2024-01-05',operation:'Sortie',entree:0,sortie:72,personne:'Ibni',remarque:''},
+    {date:'2024-01-06',operation:'Entrée',entree:148,sortie:0,personne:'Issa',remarque:''},
+    {date:'2024-01-07',operation:'Entrée',entree:1874,sortie:0,personne:'Issa',remarque:''},
+    {date:'2024-01-08',operation:'Entrée',entree:74,sortie:0,personne:'Issa',remarque:'Médicament'},
+    {date:'2024-01-09',operation:'Sortie',entree:0,sortie:512,personne:'Berdei',remarque:'Médicament'},
+    {date:'2024-01-10',operation:'Sortie',entree:0,sortie:701,personne:'Soulou',remarque:'Médicament'},
+    {date:'2024-01-11',operation:'Sortie',entree:0,sortie:47,personne:'Youssouf',remarque:'Part Youssouf pharma'},
+    {date:'2024-01-12',operation:'Entrée',entree:224,sortie:0,personne:'Moi',remarque:'100000/3 = 33 333,333'},
+    {date:'2024-01-13',operation:'Entrée',entree:74,sortie:0,personne:'Issa',remarque:'33333/700 = 47,619'},
+    {date:'2024-01-14',operation:'Entrée',entree:3000,sortie:0,personne:'Faris',remarque:'SOLDE FINAL'},
+    {date:'2024-01-15',operation:'Sortie',entree:0,sortie:2421.4,personne:'Youssouf pharmacie',remarque:'Valise commande'},
+    {date:'2024-01-16',operation:'Entrée',entree:100,sortie:0,personne:'Issa',remarque:''},
+    {date:'2024-01-17',operation:'Sortie',entree:0,sortie:2200,personne:'Retrait',remarque:'Retrait espèce'},
+    {date:'2024-01-18',operation:'Entrée',entree:3315,sortie:0,personne:'Issa',remarque:'4000$ Issa'},
+    {date:'2024-01-19',operation:'Sortie',entree:0,sortie:1000,personne:'Youssouf',remarque:'Youssouf'},
+    {date:'2024-01-20',operation:'Entrée',entree:3000,sortie:0,personne:'Issa',remarque:''},
+    {date:'2024-01-21',operation:'Entrée',entree:794,sortie:0,personne:'Ms Ibni',remarque:''},
+    {date:'2024-01-22',operation:'Entrée',entree:300,sortie:0,personne:'Ms ibni',remarque:''},
+    {date:'2024-01-23',operation:'Entrée',entree:100,sortie:0,personne:'Issa',remarque:''},
+    {date:'2024-01-24',operation:'Sortie',entree:0,sortie:70,personne:'Issa',remarque:'Bénéfice Issa'}
+  ],
+  cfa:[
+    {date:'2024-01-01',operation:'Entrée',entree:4865000,sortie:0,personne:'Capital initial',remarque:''},
+    {date:'2024-01-02',operation:'Sortie',entree:0,sortie:400000,personne:'You',remarque:''},
+    {date:'2024-01-03',operation:'Sortie',entree:0,sortie:350000,personne:'Abakar Doungous',remarque:''},
+    {date:'2024-01-04',operation:'Sortie',entree:0,sortie:2020000,personne:'Issa',remarque:''},
+    {date:'2024-01-05',operation:'Sortie',entree:0,sortie:100000,personne:'Moi',remarque:''},
+    {date:'2024-01-06',operation:'Entrée',entree:1030000,sortie:0,personne:'Ibni Alhadj',remarque:''},
+    {date:'2024-01-07',operation:'Sortie',entree:0,sortie:10000,personne:'Abbas',remarque:'Retrait Abbas'},
+    {date:'2024-01-08',operation:'Entrée',entree:50000,sortie:0,personne:'Ibni',remarque:''},
+    {date:'2024-01-09',operation:'Sortie',entree:0,sortie:100000,personne:'Issa',remarque:''},
+    {date:'2024-01-10',operation:'Sortie',entree:0,sortie:1265000,personne:'Issa',remarque:''},
+    {date:'2024-01-11',operation:'Sortie',entree:0,sortie:50000,personne:'Issa',remarque:''},
+    {date:'2024-01-12',operation:'Sortie',entree:0,sortie:10000,personne:'Abbas',remarque:'Retrait Abbas'},
+    {date:'2024-01-13',operation:'Sortie',entree:0,sortie:50000,personne:'Moi',remarque:''},
+    {date:'2024-01-14',operation:'Entrée',entree:460000,sortie:0,personne:'Youssouf pharmacie',remarque:''},
+    {date:'2024-01-15',operation:'Sortie',entree:0,sortie:50000,personne:'Issa',remarque:''},
+    {date:'2024-01-16',operation:'Sortie',entree:0,sortie:10000,personne:'Abbas',remarque:'Retrait Abbas'},
+    {date:'2024-01-17',operation:'Sortie',entree:0,sortie:67500,personne:'Issa',remarque:''},
+    {date:'2024-01-18',operation:'Sortie',entree:0,sortie:532000,personne:'Ms Ibni',remarque:''},
+    {date:'2024-01-19',operation:'Sortie',entree:0,sortie:67000,personne:'Issa',remarque:''}
+  ]
+};
+
+// ════════════════════════════════════════════
+//  TABS
+// ════════════════════════════════════════════
 function switchTab(tab) {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    const tabs = ['euro','cfa','stats','notes'];
-    const idx = tabs.indexOf(tab);
-    document.querySelectorAll('.tab')[idx].classList.add('active');
-    document.getElementById(tab + 'Tab').classList.add('active');
-    if (tab === 'stats') renderStats();
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  const tabs = ['euro','cfa','analytics','notes'];
+  document.querySelectorAll('.tab')[tabs.indexOf(tab)].classList.add('active');
+  document.getElementById(tab + 'Tab').classList.add('active');
+  if (tab === 'analytics') renderAnalytics();
 }
 
-function getFilters(type) { return { search: document.getElementById(type+'Search').value.toLowerCase(), op: document.getElementById(type+'FilterOp').value, from: document.getElementById(type+'FilterDateFrom').value, to: document.getElementById(type+'FilterDateTo').value }; }
-function filterTransactions(transactions, filters) { return transactions.filter(t => { const q = filters.search; if(q && !t.personne.toLowerCase().includes(q) && !(t.remarque||'').toLowerCase().includes(q)) return false; if(filters.op && t.operation !== filters.op) return false; if(filters.from && t.date < filters.from) return false; if(filters.to && t.date > filters.to) return false; return true; }); }
-function calculateSolde(transactions) { let solde = 0; return transactions.map(t => { solde += (t.entree - t.sortie); return { ...t, solde }; }); }
-function applyFilters(type) { const all = type === 'euro' ? euroTransactions : cfaTransactions; const withSolde = calculateSolde(all); const filters = getFilters(type); displayTransactions(type, filterTransactions(withSolde, filters)); }
-function resetFilters(type) { document.getElementById(type+'Search').value = ''; document.getElementById(type+'FilterOp').value = ''; document.getElementById(type+'FilterDateFrom').value = ''; document.getElementById(type+'FilterDateTo').value = ''; applyFilters(type); }
-
-function updateDisplay() {
-    const euroSolde = euroTransactions.reduce((a,b)=>a+(b.entree-b.sortie),0);
-    const cfaSolde = cfaTransactions.reduce((a,b)=>a+(b.entree-b.sortie),0);
-    document.getElementById('soldeEuro').textContent = euroSolde.toFixed(2) + ' €';
-    document.getElementById('soldeCFA').textContent = cfaSolde.toLocaleString('fr-FR') + ' CFA';
-    document.getElementById('totalTransactions').textContent = euroTransactions.length + cfaTransactions.length;
-    applyFilters('euro'); applyFilters('cfa');
-    const allDates = [...euroTransactions, ...cfaTransactions].map(t => t.date.substring(0,7));
-    const months = [...new Set(allDates)].sort().reverse();
-    const select = document.getElementById('statsMonthSelect');
-    const current = select.value;
-    select.innerHTML = '<option value="">Tous les mois</option>';
-    months.forEach(m => { const [y, mo] = m.split('-'); select.innerHTML += `<option value="${m}" ${m===current?'selected':''}>${new Date(y, mo-1, 1).toLocaleDateString('fr-FR', {month:'long', year:'numeric'})}</option>`; });
+// ════════════════════════════════════════════
+//  FILTRES
+// ════════════════════════════════════════════
+function getFilters(t) {
+  return {
+    q:    document.getElementById(t+'Srch').value.toLowerCase(),
+    op:   document.getElementById(t+'FOp').value,
+    from: document.getElementById(t+'FFrom').value,
+    to:   document.getElementById(t+'FTo').value
+  };
+}
+function filterT(arr, f) {
+  return arr.filter(t => {
+    if (f.q && !t.personne.toLowerCase().includes(f.q) && !(t.remarque||'').toLowerCase().includes(f.q)) return false;
+    if (f.op   && t.operation !== f.op)  return false;
+    if (f.from && t.date < f.from)        return false;
+    if (f.to   && t.date > f.to)          return false;
+    return true;
+  });
+}
+function withSolde(arr) { let s=0; return arr.map(t => { s += t.entree-t.sortie; return {...t, solde:s}; }); }
+function applyFilters(type) {
+  const arr = type==='euro' ? euroT : cfaT;
+  displayT(type, filterT(withSolde(arr), getFilters(type)));
+}
+function resetFilters(type) {
+  ['Srch','FOp','FFrom','FTo'].forEach(s => {
+    const el = document.getElementById(type+s);
+    if (el) el.value = '';
+  });
+  applyFilters(type);
 }
 
-function displayTransactions(type, transactions) {
-    const tbody = document.getElementById(type + 'TableBody');
-    const info = document.getElementById(type + 'TableInfo');
-    tbody.innerHTML = '';
-    info.textContent = transactions.length + ' ligne' + (transactions.length > 1 ? 's' : '');
-    if(transactions.length === 0) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Aucune transaction trouvée</td></tr>'; return; }
-    const isEuro = type === 'euro';
-    const allT = isEuro ? euroTransactions : cfaTransactions;
-    transactions.forEach(t => {
-        const realIndex = allT.findIndex(x => x.date === t.date && x.personne === t.personne && x.entree === t.entree && x.sortie === t.sortie && x.operation === t.operation);
-        const row = tbody.insertRow();
-        const fmtNum = (n) => isEuro ? n.toFixed(2) : n.toLocaleString('fr-FR');
-        row.innerHTML = `<td>${t.date}</td><td><span class="badge-op badge-${t.operation === 'Entrée' ? 'entree' : 'sortie'}">${t.operation}</span></td><td class="cell-entree">${t.entree > 0 ? fmtNum(t.entree) : '—'}</td><td class="cell-sortie">${t.sortie > 0 ? fmtNum(t.sortie) : '—'}</td><td class="cell-solde ${t.solde>=0?'positive':'negative'}">${fmtNum(t.solde)}</td><td>${t.personne}</td><td style="max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${t.remarque||''}">${t.remarque || '—'}</td><td><button class="edit-btn" onclick="editTransaction('${type}',${realIndex})">Modifier</button><button class="delete-btn" onclick="deleteTransaction('${type}',${realIndex})">Suppr.</button></td>`;
-    });
+// ════════════════════════════════════════════
+//  AFFICHAGE GLOBAL
+// ════════════════════════════════════════════
+function updateAll() {
+  const eS  = euroT.reduce((a,b)=>a+b.entree-b.sortie,0);
+  const cS  = cfaT.reduce((a,b)=>a+b.entree-b.sortie,0);
+  const eIn = euroT.reduce((a,b)=>a+b.entree,0);
+  const eOu = euroT.reduce((a,b)=>a+b.sortie,0);
+
+  document.getElementById('kpiEuro').textContent    = fmtEuro(eS);
+  document.getElementById('kpiEuroSub').textContent = (eS >= 0 ? '▲ Positif' : '▼ Négatif');
+  document.getElementById('kpiCFA').textContent     = fmtCFA(cS);
+  document.getElementById('kpiCFASub').textContent  = (cS >= 0 ? '▲ Positif' : '▼ Négatif');
+  document.getElementById('kpiEIn').textContent     = fmtEuro(eIn);
+  document.getElementById('kpiEInSub').textContent  = euroT.filter(t=>t.entree>0).length + ' opérations';
+  document.getElementById('kpiEOut').textContent    = fmtEuro(eOu);
+  document.getElementById('kpiEOutSub').textContent = euroT.filter(t=>t.sortie>0).length + ' opérations';
+  document.getElementById('kpiTx').textContent      = euroT.length + cfaT.length;
+  document.getElementById('kpiTxSub').textContent   = euroT.length + ' Euro · ' + cfaT.length + ' CFA';
+  document.getElementById('kpiNotes').textContent   = notes.length;
+
+  applyFilters('euro'); applyFilters('cfa');
+
+  // Update month selector
+  const all = [...euroT,...cfaT].map(t=>t.date.slice(0,7));
+  const months = [...new Set(all)].sort().reverse();
+  const sel = document.getElementById('aMonth');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Tous</option>';
+  months.forEach(m => {
+    const [y,mo] = m.split('-');
+    sel.innerHTML += `<option value="${m}" ${m===cur?'selected':''}>${new Date(y,mo-1,1).toLocaleDateString('fr-FR',{month:'long',year:'numeric'})}</option>`;
+  });
 }
 
-function editTransaction(type, index) {
-    const t = type === 'euro' ? euroTransactions[index] : cfaTransactions[index];
-    document.getElementById('editType').value = type; document.getElementById('editIndex').value = index;
-    document.getElementById('editDate').value = t.date; document.getElementById('editOperation').value = t.operation;
-    document.getElementById('editEntree').value = t.entree || ''; document.getElementById('editSortie').value = t.sortie || '';
-    document.getElementById('editPersonne').value = t.personne; document.getElementById('editTaux').value = t.taux || '';
-    document.getElementById('editRemarque').value = t.remarque || '';
-    document.getElementById('editModal').classList.add('active');
+// ════════════════════════════════════════════
+//  AFFICHAGE TABLE
+// ════════════════════════════════════════════
+function displayT(type, rows) {
+  const body = document.getElementById(type+'Body');
+  const cnt  = document.getElementById(type+'Count');
+  const isE  = type === 'euro';
+  const all  = isE ? euroT : cfaT;
+  body.innerHTML = '';
+  cnt.textContent = rows.length + ' ligne' + (rows.length>1?'s':'');
+  if (!rows.length) { body.innerHTML = `<tr><td colspan="8" class="empty">Aucune transaction</td></tr>`; return; }
+  const fmt = n => isE ? fmtEuro(n) : fmtCFA(n);
+  rows.forEach(t => {
+    const ri = all.findIndex(x => x.date===t.date && x.personne===t.personne && x.entree===t.entree && x.sortie===t.sortie && x.operation===t.operation);
+    const tr = body.insertRow();
+    const sc = t.solde > 0 ? 'val-pos' : t.solde < 0 ? 'val-neg' : 'val-neu';
+    tr.innerHTML = `
+      <td>${t.date}</td>
+      <td><span class="badge ${t.operation==='Entrée'?'badge-in':'badge-out'}">${t.operation}</span></td>
+      <td class="val-in">${t.entree>0?fmt(t.entree):'—'}</td>
+      <td class="val-out">${t.sortie>0?fmt(t.sortie):'—'}</td>
+      <td class="${sc}">${fmt(t.solde)}</td>
+      <td>${t.personne}</td>
+      <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${t.remarque||''}">${t.remarque||'—'}</td>
+      <td>
+        <button class="act-btn act-edit" onclick="openEdit('${type}',${ri})">Modifier</button>
+        <button class="act-btn act-del"  onclick="delT('${type}',${ri})">Suppr.</button>
+      </td>`;
+  });
 }
-function closeEditModal() { document.getElementById('editModal').classList.remove('active'); document.getElementById('editForm').reset(); }
+
+// ════════════════════════════════════════════
+//  EDIT / DELETE
+// ════════════════════════════════════════════
+function openEdit(type, idx) {
+  const t = type==='euro' ? euroT[idx] : cfaT[idx];
+  document.getElementById('editType').value  = type;
+  document.getElementById('editIdx').value   = idx;
+  document.getElementById('edDate').value    = t.date;
+  document.getElementById('edOp').value      = t.operation;
+  document.getElementById('edIn').value      = t.entree||'';
+  document.getElementById('edOut').value     = t.sortie||'';
+  document.getElementById('edPerson').value  = t.personne;
+  document.getElementById('edRate').value    = t.taux||'';
+  document.getElementById('edNote').value    = t.remarque||'';
+  document.getElementById('editModal').classList.add('open');
+}
+function closeEdit() { document.getElementById('editModal').classList.remove('open'); document.getElementById('editForm').reset(); }
 document.getElementById('editForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const type = document.getElementById('editType').value, index = parseInt(document.getElementById('editIndex').value);
-    const updated = { date: document.getElementById('editDate').value, operation: document.getElementById('editOperation').value, entree: parseFloat(document.getElementById('editEntree').value)||0, sortie: parseFloat(document.getElementById('editSortie').value)||0, personne: document.getElementById('editPersonne').value, remarque: document.getElementById('editRemarque').value, taux: parseFloat(document.getElementById('editTaux').value)||null };
-    if(type === 'euro') euroTransactions[index] = updated; else cfaTransactions[index] = updated;
-    saveToFirebase(); updateDisplay(); closeEditModal(); showToast('Transaction modifiée', 'success');
+  e.preventDefault();
+  const type = document.getElementById('editType').value;
+  const idx  = parseInt(document.getElementById('editIdx').value);
+  const upd  = {
+    date:      document.getElementById('edDate').value,
+    operation: document.getElementById('edOp').value,
+    entree:    parseFloat(document.getElementById('edIn').value)||0,
+    sortie:    parseFloat(document.getElementById('edOut').value)||0,
+    personne:  document.getElementById('edPerson').value,
+    remarque:  document.getElementById('edNote').value,
+    taux:      parseFloat(document.getElementById('edRate').value)||null
+  };
+  if (type==='euro') euroT[idx]=upd; else cfaT[idx]=upd;
+  saveToDB(); updateAll(); closeEdit(); toast('Transaction modifiée ✓', 'ok');
 });
-function deleteTransaction(type, index) {
-    if(confirm('Supprimer cette transaction ?')) { if(type === 'euro') euroTransactions.splice(index,1); else cfaTransactions.splice(index,1); saveToFirebase(); updateDisplay(); showToast('Transaction supprimée'); }
+
+function delT(type, idx) {
+  if (!confirm('Supprimer cette transaction ?')) return;
+  if (type==='euro') euroT.splice(idx,1); else cfaT.splice(idx,1);
+  saveToDB(); updateAll(); toast('Transaction supprimée');
 }
 
-document.getElementById('euroForm').addEventListener('submit', function(e) { e.preventDefault(); euroTransactions.push({ date: document.getElementById('euroDate').value, operation: document.getElementById('euroOperation').value, entree: parseFloat(document.getElementById('euroEntree').value)||0, sortie: parseFloat(document.getElementById('euroSortie').value)||0, personne: document.getElementById('euroPersonne').value, remarque: document.getElementById('euroRemarque').value, taux: parseFloat(document.getElementById('euroTaux').value)||null }); saveToFirebase(); updateDisplay(); this.reset(); document.getElementById('euroDate').value = new Date().toISOString().split('T')[0]; showToast('Transaction ajoutée', 'success'); });
-document.getElementById('cfaForm').addEventListener('submit', function(e) { e.preventDefault(); cfaTransactions.push({ date: document.getElementById('cfaDate').value, operation: document.getElementById('cfaOperation').value, entree: parseFloat(document.getElementById('cfaEntree').value)||0, sortie: parseFloat(document.getElementById('cfaSortie').value)||0, personne: document.getElementById('cfaPersonne').value, remarque: document.getElementById('cfaRemarque').value, taux: parseFloat(document.getElementById('cfaTaux').value)||null }); saveToFirebase(); updateDisplay(); this.reset(); document.getElementById('cfaDate').value = new Date().toISOString().split('T')[0]; showToast('Transaction ajoutée', 'success'); });
+// ════════════════════════════════════════════
+//  FORMULAIRES — sauvegarde miroir auto
+// ════════════════════════════════════════════
+document.getElementById('euroForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  euroT.push({
+    date:      document.getElementById('eDate').value,
+    operation: document.getElementById('eOp').value,
+    entree:    parseFloat(document.getElementById('eIn').value)||0,
+    sortie:    parseFloat(document.getElementById('eOut').value)||0,
+    personne:  document.getElementById('ePerson').value,
+    remarque:  document.getElementById('eNote').value,
+    taux:      parseFloat(document.getElementById('eRate').value)||null
+  });
+  saveToDB(); updateAll(); this.reset();
+  document.getElementById('eDate').value = new Date().toISOString().split('T')[0];
+  toast('Transaction ajoutée ✓', 'ok');
+  syncMirror(false); // ← SAUVEGARDE AUTO ICI
+});
 
-function renderStats() {
-    const monthFilter = document.getElementById('statsMonthSelect').value, typeFilter = document.getElementById('statsTypeSelect').value;
-    const transactions = typeFilter === 'euro' ? euroTransactions : cfaTransactions, isEuro = typeFilter === 'euro';
-    const fmt = (n) => isEuro ? n.toFixed(2) + ' €' : n.toLocaleString('fr-FR') + ' CFA';
-    const filtered = monthFilter ? transactions.filter(t => t.date.startsWith(monthFilter)) : transactions;
-    const totalEntrees = filtered.reduce((s,t)=>s+t.entree,0), totalSorties = filtered.reduce((s,t)=>s+t.sortie,0), variation = totalEntrees - totalSorties;
-    document.getElementById('statsCards').innerHTML = `<div class="stat-card stat-green"><div class="stat-label">Total entrées</div><div class="stat-value">${fmt(totalEntrees)}</div><div class="stat-sub">${filtered.filter(t=>t.entree>0).length} opérations</div></div><div class="stat-card stat-red"><div class="stat-label">Total sorties</div><div class="stat-value">${fmt(totalSorties)}</div><div class="stat-sub">${filtered.filter(t=>t.sortie>0).length} opérations</div></div><div class="stat-card ${variation>=0?'stat-green':'stat-red'}"><div class="stat-label">Variation nette</div><div class="stat-value">${variation >= 0 ? '+' : ''}${fmt(variation)}</div><div class="stat-sub">${filtered.length} transactions</div></div><div class="stat-card stat-blue"><div class="stat-label">Nb personnes</div><div class="stat-value">${[...new Set(filtered.map(t=>t.personne))].length}</div><div class="stat-sub">personnes distinctes</div></div>`;
-    const byMonth = {}; transactions.forEach(t => { const m = t.date.substring(0,7); if(!monthFilter || m===monthFilter) { if(!byMonth[m]) byMonth[m]={entrees:0,sorties:0,count:0}; byMonth[m].entrees += t.entree; byMonth[m].sorties += t.sortie; byMonth[m].count++; } });
-    const monthBody = document.getElementById('monthlyTableBody'); monthBody.innerHTML = '';
-    Object.keys(byMonth).sort().reverse().forEach(m => { const d = byMonth[m]; const net = d.entrees - d.sorties; const [y, mo] = m.split('-'); const label = new Date(y, mo-1, 1).toLocaleDateString('fr-FR', {month:'long', year:'numeric'}); monthBody.innerHTML += `<tr><td style="font-weight:500;">${label}</td><td>${d.count}</td><td class="cell-entree">${fmt(d.entrees)}</td><td class="cell-sortie">${fmt(d.sorties)}</td><td class="cell-solde ${net>=0?'positive':'negative'}">${net>=0?'+':''}${fmt(net)}</td></tr>`; });
-    const byPerson = {}; filtered.forEach(t => { if(!byPerson[t.personne]) byPerson[t.personne]={entrees:0,sorties:0,count:0}; byPerson[t.personne].entrees += t.entree; byPerson[t.personne].sorties += t.sortie; byPerson[t.personne].count++; });
-    const personBody = document.getElementById('personnesTableBody'); personBody.innerHTML = '';
-    Object.entries(byPerson).sort((a,b)=>b[1].count-a[1].count).forEach(([name,d]) => { const net = d.entrees - d.sorties; personBody.innerHTML += `<tr><td style="font-weight:500;">${name}</td><td>${d.count}</td><td class="cell-entree">${fmt(d.entrees)}</td><td class="cell-sortie">${fmt(d.sorties)}</td><td class="cell-solde ${net>=0?'positive':'negative'}">${net>=0?'+':''}${fmt(net)}</td></tr>`; });
+document.getElementById('cfaForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  cfaT.push({
+    date:      document.getElementById('cDate').value,
+    operation: document.getElementById('cOp').value,
+    entree:    parseFloat(document.getElementById('cIn').value)||0,
+    sortie:    parseFloat(document.getElementById('cOut').value)||0,
+    personne:  document.getElementById('cPerson').value,
+    remarque:  document.getElementById('cNote').value,
+    taux:      parseFloat(document.getElementById('cRate').value)||null
+  });
+  saveToDB(); updateAll(); this.reset();
+  document.getElementById('cDate').value = new Date().toISOString().split('T')[0];
+  toast('Transaction ajoutée ✓', 'ok');
+  syncMirror(false); // ← SAUVEGARDE AUTO ICI
+});
+
+// ════════════════════════════════════════════
+//  ANALYTICS
+// ════════════════════════════════════════════
+function fmtEuro(n) { return n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' €'; }
+function fmtCFA(n)  { return n.toLocaleString('fr-FR') + ' CFA'; }
+
+function renderAnalytics() {
+  const type   = document.getElementById('aType').value;
+  const month  = document.getElementById('aMonth').value;
+  const arr    = type==='euro' ? euroT : cfaT;
+  const isE    = type==='euro';
+  const fmt    = n => isE ? fmtEuro(n) : fmtCFA(n);
+  const data   = month ? arr.filter(t=>t.date.startsWith(month)) : arr;
+
+  const totIn  = data.reduce((s,t)=>s+t.entree,0);
+  const totOut = data.reduce((s,t)=>s+t.sortie,0);
+  const net    = totIn - totOut;
+  const txIn   = data.filter(t=>t.entree>0).length;
+  const txOut  = data.filter(t=>t.sortie>0).length;
+  const avg    = data.length ? (totIn+totOut)/data.length : 0;
+
+  // KPI analytiques
+  document.getElementById('aKpis').innerHTML = `
+    <div class="kpi kpi-green" style="padding:16px 18px;">
+      <div class="kpi-label">Total Entrées</div>
+      <div class="kpi-value" style="font-size:1.3rem;">${fmt(totIn)}</div>
+      <div class="kpi-sub">${txIn} transactions</div>
+    </div>
+    <div class="kpi kpi-red" style="padding:16px 18px;">
+      <div class="kpi-label">Total Sorties</div>
+      <div class="kpi-value" style="font-size:1.3rem;">${fmt(totOut)}</div>
+      <div class="kpi-sub">${txOut} transactions</div>
+    </div>
+    <div class="kpi ${net>=0?'kpi-green':'kpi-red'}" style="padding:16px 18px;">
+      <div class="kpi-label">Variation nette</div>
+      <div class="kpi-value" style="font-size:1.3rem;">${net>=0?'+':''}${fmt(net)}</div>
+      <div class="kpi-sub">${data.length} transactions</div>
+    </div>
+    <div class="kpi kpi-blue" style="padding:16px 18px;">
+      <div class="kpi-label">Moyenne / transaction</div>
+      <div class="kpi-value" style="font-size:1.3rem;">${fmt(avg)}</div>
+      <div class="kpi-sub">${[...new Set(data.map(t=>t.personne))].length} personnes</div>
+    </div>`;
+
+  // Bar chart — top personnes entrées
+  const byPIn = {};
+  data.forEach(t => { if (t.entree>0) { byPIn[t.personne] = (byPIn[t.personne]||0) + t.entree; }});
+  const topIn = Object.entries(byPIn).sort((a,b)=>b[1]-a[1]).slice(0,7);
+  const maxIn = topIn[0]?.[1] || 1;
+  document.getElementById('chartPersonIn').innerHTML = topIn.length
+    ? topIn.map(([n,v]) => `
+        <div class="bar-row">
+          <div class="bar-label" title="${n}">${n}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${(v/maxIn*100).toFixed(1)}%;background:var(--green);"></div></div>
+          <div class="bar-val" style="color:var(--green);">${fmt(v)}</div>
+        </div>`).join('')
+    : '<div style="color:var(--text3);font-size:.8rem;padding:12px;">Aucune donnée</div>';
+
+  // Bar chart — top personnes sorties
+  const byPOut = {};
+  data.forEach(t => { if (t.sortie>0) { byPOut[t.personne] = (byPOut[t.personne]||0) + t.sortie; }});
+  const topOut = Object.entries(byPOut).sort((a,b)=>b[1]-a[1]).slice(0,7);
+  const maxOut = topOut[0]?.[1] || 1;
+  document.getElementById('chartPersonOut').innerHTML = topOut.length
+    ? topOut.map(([n,v]) => `
+        <div class="bar-row">
+          <div class="bar-label" title="${n}">${n}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${(v/maxOut*100).toFixed(1)}%;background:var(--red);"></div></div>
+          <div class="bar-val" style="color:var(--red);">${fmt(v)}</div>
+        </div>`).join('')
+    : '<div style="color:var(--text3);font-size:.8rem;padding:12px;">Aucune donnée</div>';
+
+  // Tendance mensuelle SVG
+  const byMonth = {};
+  arr.forEach(t => {
+    const m = t.date.slice(0,7);
+    if (!byMonth[m]) byMonth[m]={in:0,out:0};
+    byMonth[m].in  += t.entree;
+    byMonth[m].out += t.sortie;
+  });
+  const monthKeys = Object.keys(byMonth).sort();
+  if (monthKeys.length > 1) {
+    const W=700, H=180, PAD=40;
+    const vals = monthKeys.map(k=>byMonth[k]);
+    const allV = vals.flatMap(v=>[v.in,v.out]);
+    const vMax = Math.max(...allV,1);
+    const x = i => PAD + i*(W-PAD*2)/(monthKeys.length-1);
+    const y = v => H - PAD - (v/vMax)*(H-PAD*2);
+    const pts = (key) => monthKeys.map((m,i)=>`${x(i)},${y(byMonth[m][key])}`).join(' ');
+    const path = (key,col) => {
+      const coords = monthKeys.map((m,i)=>[x(i),y(byMonth[m][key])]);
+      const d = coords.map((p,i)=>(i?`L`:`M`)+p[0]+' '+p[1]).join(' ');
+      return `<path d="${d}" stroke="${col}" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+    };
+    const dots = (key,col) => monthKeys.map((m,i)=>
+      `<circle cx="${x(i)}" cy="${y(byMonth[m][key])}" r="4" fill="${col}" stroke="var(--surface)" stroke-width="2">
+        <title>${m}: ${fmt(byMonth[m][key])}</title></circle>`
+    ).join('');
+    const labels = monthKeys.map((m,i)=>{
+      const [yr,mo]=m.split('-');
+      const short = new Date(yr,mo-1,1).toLocaleDateString('fr-FR',{month:'short'});
+      return `<text x="${x(i)}" y="${H-8}" text-anchor="middle" font-size="10" fill="var(--text3)">${short}</text>`;
+    }).join('');
+    document.getElementById('trendChart').innerHTML = `
+      <svg viewBox="0 0 ${W} ${H}" class="trend-svg">
+        ${path('in','var(--green)')} ${path('out','var(--red)')}
+        ${dots('in','var(--green)')} ${dots('out','var(--red)')}
+        ${labels}
+        <text x="8" y="20" font-size="10" fill="var(--green)" font-weight="600">▬ Entrées</text>
+        <text x="80" y="20" font-size="10" fill="var(--red)" font-weight="600">▬ Sorties</text>
+      </svg>`;
+  } else {
+    document.getElementById('trendChart').innerHTML = '<div style="color:var(--text3);font-size:.8rem;padding:12px 0;">Pas assez de données pour afficher la tendance.</div>';
+  }
+
+  // Tableau mensuel
+  const mb = document.getElementById('monthBody');
+  mb.innerHTML = '';
+  Object.keys(byMonth).sort().reverse().forEach(m => {
+    const d = byMonth[m]; const net2 = d.in - d.out;
+    const [y2,mo2] = m.split('-');
+    const label = new Date(y2,mo2-1,1).toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
+    const ratio = d.out > 0 ? (d.in/d.out).toFixed(2) : '∞';
+    const txM = arr.filter(t=>t.date.startsWith(m)).length;
+    mb.innerHTML += `<tr>
+      <td>${label}</td><td>${txM}</td>
+      <td class="val-in">${fmt(d.in)}</td>
+      <td class="val-out">${fmt(d.out)}</td>
+      <td class="${net2>=0?'val-pos':'val-neg'}">${net2>=0?'+':''}${fmt(net2)}</td>
+      <td style="color:var(--text2);">${ratio}</td>
+    </tr>`;
+  });
+
+  // Tableau personnes
+  const bp = {};
+  data.forEach(t => {
+    if (!bp[t.personne]) bp[t.personne]={in:0,out:0,count:0};
+    bp[t.personne].in    += t.entree;
+    bp[t.personne].out   += t.sortie;
+    bp[t.personne].count++;
+  });
+  const totAll = totIn + totOut || 1;
+  const pb = document.getElementById('personBody');
+  pb.innerHTML = '';
+  Object.entries(bp).sort((a,b)=>b[1].count-a[1].count).forEach(([name,d]) => {
+    const net3 = d.in - d.out;
+    const pct  = (((d.in+d.out)/totAll)*100).toFixed(1);
+    pb.innerHTML += `<tr>
+      <td>${name}</td><td>${d.count}</td>
+      <td class="val-in">${fmt(d.in)}</td>
+      <td class="val-out">${fmt(d.out)}</td>
+      <td class="${net3>=0?'val-pos':'val-neg'}">${net3>=0?'+':''}${fmt(net3)}</td>
+      <td style="color:var(--text2);">${pct}%</td>
+    </tr>`;
+  });
 }
 
-function generateId() { return Date.now().toString(36) + Math.random().toString(36).substr(2); }
-function newNote() { const note = { id: generateId(), title: '', content: '', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }; notes.unshift(note); saveNotesToFirebase(); renderNotesList(); openNote(note.id); document.getElementById('totalNotes').textContent = notes.length; }
-function openNote(id) { currentNoteId = id; const note = notes.find(n => n.id === id); if(!note) return; document.getElementById('noteNoSelection').style.display = 'none'; const editor = document.getElementById('noteEditor'); editor.style.display = 'flex'; document.getElementById('noteTitleInput').value = note.title; document.getElementById('noteContentArea').value = note.content; const created = new Date(note.createdAt).toLocaleDateString('fr-FR'); const updated = new Date(note.updatedAt).toLocaleDateString('fr-FR', {hour:'2-digit',minute:'2-digit'}); document.getElementById('noteEditorDate').textContent = 'Créée le ' + created; document.getElementById('noteEditorStatus').textContent = 'Modifiée ' + updated; renderNotesList(); }
-function autoSaveNote() { if(!currentNoteId) return; clearTimeout(autoSaveTimer); document.getElementById('noteEditorStatus').textContent = 'Enregistrement...'; autoSaveTimer = setTimeout(() => { const idx = notes.findIndex(n => n.id === currentNoteId); if(idx !== -1) { notes[idx].title = document.getElementById('noteTitleInput').value; notes[idx].content = document.getElementById('noteContentArea').value; notes[idx].updatedAt = new Date().toISOString(); saveNotesToFirebase(); renderNotesList(); showToast('Note sauvegardée'); } }, 600); }
-function deleteCurrentNote() { if(!currentNoteId || !confirm('Supprimer cette note ?')) return; notes = notes.filter(n => n.id !== currentNoteId); currentNoteId = null; saveNotesToFirebase(); renderNotesList(); document.getElementById('noteNoSelection').style.display = 'flex'; document.getElementById('noteEditor').style.display = 'none'; document.getElementById('totalNotes').textContent = notes.length; showToast('Note supprimée'); }
-function renderNotesList() { const q = document.getElementById('notesSearch').value.toLowerCase(); const list = document.getElementById('notesList'); const filtered = notes.filter(n => !q || n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q)); if(filtered.length === 0) { list.innerHTML = '<div class="note-empty-list">Aucune note trouvée</div>'; return; } list.innerHTML = filtered.map(n => `<div class="note-item ${n.id===currentNoteId?'active':''}" onclick="openNote('${n.id}')"><div class="note-item-title">${n.title || 'Sans titre'}</div><div class="note-item-preview">${(n.content||'').replace(/\n/g,' ').substring(0,60) || 'Note vide'}</div><div class="note-item-date">${new Date(n.updatedAt).toLocaleDateString('fr-FR', {day:'2-digit',month:'short'})}</div></div>`).join(''); }
-function exportData() { const data = { euroTransactions, cfaTransactions, notes, exportDate: new Date().toISOString() }; const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `kanga-export-${new Date().toISOString().split('T')[0]}.json`; a.click(); URL.revokeObjectURL(a.href); showToast('Export réussi', 'success'); }
-function importData(event) { const file = event.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = function(e) { try { const data = JSON.parse(e.target.result); if(data.euroTransactions && data.cfaTransactions) { if(confirm('Remplacer toutes les données actuelles ?')) { euroTransactions = data.euroTransactions; cfaTransactions = data.cfaTransactions; if(data.notes) notes = data.notes; saveToFirebase(); saveNotesToFirebase(); updateDisplay(); renderNotesList(); showToast('Import réussi', 'success'); } } else alert('Fichier invalide.'); } catch(err) { alert('Erreur : ' + err.message); } }; reader.readAsText(file); event.target.value = ''; }
+// ════════════════════════════════════════════
+//  NOTES
+// ════════════════════════════════════════════
+function genId() { return Date.now().toString(36)+Math.random().toString(36).slice(2); }
+function newNote() {
+  const n = { id:genId(), title:'', content:'', createdAt:new Date().toISOString(), updatedAt:new Date().toISOString() };
+  notes.unshift(n); saveNotes(); renderNotesList(); openNote(n.id);
+  document.getElementById('kpiNotes').textContent = notes.length;
+}
+function openNote(id) {
+  currentNote = id;
+  const n = notes.find(x=>x.id===id); if (!n) return;
+  document.getElementById('neEmpty').style.display = 'none';
+  document.getElementById('neEditor').style.display = 'flex';
+  document.getElementById('neTitle').value = n.title;
+  document.getElementById('neBody').value  = n.content;
+  document.getElementById('neDate').textContent   = 'Créée le ' + new Date(n.createdAt).toLocaleDateString('fr-FR');
+  document.getElementById('neStatus').textContent = 'Modifiée ' + new Date(n.updatedAt).toLocaleString('fr-FR');
+  renderNotesList();
+}
+function autoSaveNote() {
+  if (!currentNote) return;
+  clearTimeout(noteTimer);
+  document.getElementById('neStatus').textContent = 'Enregistrement...';
+  noteTimer = setTimeout(() => {
+    const i = notes.findIndex(x=>x.id===currentNote);
+    if (i>=0) {
+      notes[i].title   = document.getElementById('neTitle').value;
+      notes[i].content = document.getElementById('neBody').value;
+      notes[i].updatedAt = new Date().toISOString();
+      saveNotes(); renderNotesList();
+      document.getElementById('neStatus').textContent = 'Sauvegardé ✓';
+    }
+  }, 600);
+}
+function deleteNote() {
+  if (!currentNote || !confirm('Supprimer cette note ?')) return;
+  notes = notes.filter(n=>n.id!==currentNote); currentNote = null;
+  saveNotes(); renderNotesList();
+  document.getElementById('neEmpty').style.display = 'flex';
+  document.getElementById('neEditor').style.display = 'none';
+  document.getElementById('kpiNotes').textContent = notes.length;
+  toast('Note supprimée');
+}
+function renderNotesList() {
+  const q = document.getElementById('noteSearch').value.toLowerCase();
+  const el = document.getElementById('notesList');
+  const filtered = notes.filter(n=>!q||n.title.toLowerCase().includes(q)||n.content.toLowerCase().includes(q));
+  if (!filtered.length) { el.innerHTML = '<div class="note-empty">Aucune note trouvée</div>'; return; }
+  el.innerHTML = filtered.map(n=>`
+    <div class="note-item ${n.id===currentNote?'active':''}" onclick="openNote('${n.id}')">
+      <div class="ni-title">${n.title||'Sans titre'}</div>
+      <div class="ni-preview">${(n.content||'').replace(/\n/g,' ').slice(0,55)||'Note vide'}</div>
+      <div class="ni-date">${new Date(n.updatedAt).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'})}</div>
+    </div>`).join('');
+}
 
-document.addEventListener('DOMContentLoaded', function() {
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('euroDate').value = today;
-    document.getElementById('cfaDate').value = today;
-    listenToFirebase();
-    setTimeout(() => { database.ref('euroTransactions').once('value').then(snap => { if(!snap.exists()) loadHistoricalData(); else updateDisplay(); }); }, 2000);
+// ════════════════════════════════════════════
+//  EXPORT / IMPORT
+// ════════════════════════════════════════════
+function exportData() {
+  const blob = new Blob([JSON.stringify({euroTransactions:euroT,cfaTransactions:cfaT,notes,exportDate:new Date().toISOString()},null,2)],{type:'application/json'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=`kanga-${new Date().toISOString().split('T')[0]}.json`; a.click();
+  URL.revokeObjectURL(a.href); toast('Export réussi ✓', 'ok');
+}
+function importData(e) {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    try {
+      const d = JSON.parse(ev.target.result);
+      if (d.euroTransactions && d.cfaTransactions) {
+        if (confirm('Remplacer toutes les données ?')) {
+          euroT = d.euroTransactions; cfaT = d.cfaTransactions;
+          if (d.notes) notes = d.notes;
+          saveToDB(); saveNotes(); updateAll(); renderNotesList();
+          toast('Import réussi ✓', 'ok');
+        }
+      } else alert('Fichier invalide.');
+    } catch(err) { alert('Erreur : '+err.message); }
+  };
+  r.readAsText(f); e.target.value = '';
+}
+
+// ════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('eDate').value = today;
+  document.getElementById('cDate').value = today;
+
+  listen();
+
+  // Charger info miroir
+  mirrorDb.ref('/latest').once('value').then(s => {
+    if (s.exists()) {
+      const d = s.val(), dt = new Date(d.savedAt);
+      setMirror('ok', '✅ OK');
+      document.getElementById('backupSub').innerHTML =
+        `Dernière sauvegarde : <b>${dt.toLocaleDateString('fr-FR')} à ${dt.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</b> · ${d.label}`;
+    } else {
+      document.getElementById('backupSub').textContent = 'Aucune sauvegarde encore — ajoutez une transaction pour en créer une.';
+    }
+  }).catch(() => {
+    setMirror('error', '✗ Miroir inaccessible');
+    document.getElementById('backupSub').textContent = 'Impossible de joindre la base miroir.';
+  });
+
+  // Données initiales si base vide
+  setTimeout(() => {
+    db.ref('euroTransactions').once('value').then(s => {
+      if (!s.exists()) {
+        euroT = JSON.parse(JSON.stringify(HD.euro));
+        cfaT  = JSON.parse(JSON.stringify(HD.cfa));
+        saveToDB(); updateAll();
+      }
+    });
+  }, 2000);
 });
 </script>
 </body>
