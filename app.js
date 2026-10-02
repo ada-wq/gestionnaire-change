@@ -561,6 +561,30 @@ function switchTab(tab) {
   if (tab === 'analytics') renderAnalytics();
   if (tab === 'dash') renderDashboard();
   if (tab === 'suivi') renderSuivi();
+  updateNav(tab);
+  window.scrollTo({ top: 0 });
+}
+
+// ── Navigation mobile : barre du bas, menu "Plus", bouton + ──
+function updateNav(tab) {
+  const main = ['dash', 'euro', 'cfa', 'suivi'];
+  document.querySelectorAll('[data-nav]').forEach(b => {
+    b.classList.toggle('active', b.dataset.nav === (main.includes(tab) ? tab : 'more'));
+  });
+  document.getElementById('fab').classList.toggle('show', tab === 'euro' || tab === 'cfa');
+}
+function openMore() {
+  document.getElementById('moreBackup').innerHTML = document.getElementById('backupSub').innerHTML;
+  document.getElementById('moreSheet').classList.add('open');
+}
+function closeMore() { document.getElementById('moreSheet').classList.remove('open'); }
+function moreGo(fn) { closeMore(); fn(); }
+// bouton + : amène au formulaire d'ajout de l'onglet courant
+function quickAdd() {
+  const tab = (document.querySelector('.tab.active') || {}).dataset?.tab;
+  if (tab !== 'euro' && tab !== 'cfa') return;
+  document.getElementById(tab + 'Form').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  setTimeout(() => document.getElementById(tab === 'euro' ? 'ePerson' : 'cPerson').focus(), 400);
 }
 
 // ════════════════════════════════════════════
@@ -1452,6 +1476,9 @@ function renderSuivi() {
   const badge = document.getElementById('suiviBadge');
   badge.textContent = openAll.length;
   badge.style.display = openAll.length ? '' : 'none';
+  const badge2 = document.getElementById('suiviBadge2');
+  badge2.textContent = openAll.length;
+  badge2.style.display = openAll.length ? '' : 'none';
 
   const shown = f ? all.filter(t => t.contrepartie === f) : all;
   // les plus anciens d'abord : ce sont ceux à relancer en priorité
@@ -1575,11 +1602,17 @@ function closeSelected() {
 
 // ── Qui utilise l'appareil + journal des modifications ──
 function getWho() { try { return localStorage.getItem('kanga_who') || ''; } catch (e) { return ''; } }
-function setWho(v) { try { localStorage.setItem('kanga_who', v); } catch (e) {} }
+function setWho(v) {
+  try { localStorage.setItem('kanga_who', v); } catch (e) {}
+  ['whoAmI', 'whoAmI2'].forEach(id => { const s = document.getElementById(id); if (s) s.value = v; });
+}
 function fillWho() {
-  const sel = document.getElementById('whoAmI');
-  sel.innerHTML = '<option value="">👤 Qui ?</option>' + SUIVI_PERSONS.map(p => `<option value="${p}">👤 ${p}</option>`).join('');
-  sel.value = getWho();
+  ['whoAmI', 'whoAmI2'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = '<option value="">👤 Qui ?</option>' + SUIVI_PERSONS.map(p => `<option value="${p}">👤 ${p}</option>`).join('');
+    sel.value = getWho();
+  });
 }
 
 function logAction(action, type, tx, detail) {

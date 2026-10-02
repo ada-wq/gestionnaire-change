@@ -2,7 +2,7 @@
 <html lang="fr" data-theme="light">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>KANGA · Gestionnaire Euro/CFA</title>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
@@ -549,6 +549,39 @@
         <button type="button" class="btn" style="flex:1;" onclick="closePinModal()">Annuler</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- NAVIGATION MOBILE (barre du bas, menu Plus, bouton +) -->
+<nav class="bottom-nav" id="bottomNav">
+  <button data-nav="dash" class="active" onclick="switchTab('dash')"><span class="bn-ic">🏠</span><span>Accueil</span></button>
+  <button data-nav="euro" onclick="switchTab('euro')"><span class="bn-ic">💶</span><span>Euro</span></button>
+  <button data-nav="cfa" onclick="switchTab('cfa')"><span class="bn-ic">💵</span><span>CFA</span></button>
+  <button data-nav="suivi" onclick="switchTab('suivi')"><span class="bn-ic">🔗</span><span>Suivi</span><span class="tab-badge" id="suiviBadge2" style="display:none;">0</span></button>
+  <button data-nav="more" onclick="openMore()"><span class="bn-ic">☰</span><span>Plus</span></button>
+</nav>
+<button class="fab" id="fab" onclick="quickAdd()" aria-label="Nouvelle transaction">＋</button>
+
+<div class="sheet-overlay" id="moreSheet" onclick="if(event.target===this)closeMore()">
+  <div class="sheet">
+    <div class="sheet-grip"></div>
+    <div class="sheet-title">Menu</div>
+    <div class="sheet-grid">
+      <button class="sheet-item" onclick="moreGo(()=>switchTab('analytics'))"><span>📊</span>Analyses</button>
+      <button class="sheet-item" onclick="moreGo(()=>switchTab('notes'))"><span>📓</span>Notes</button>
+      <button class="sheet-item" onclick="moreGo(openTrash)"><span>🗑</span>Corbeille</button>
+      <button class="sheet-item" onclick="moreGo(openLog)"><span>📜</span>Journal</button>
+      <button class="sheet-item" onclick="moreGo(()=>syncMirror(true))"><span>☁️</span>Sauvegarder</button>
+      <button class="sheet-item" onclick="moreGo(openHistory)"><span>📋</span>Historique</button>
+      <button class="sheet-item" onclick="moreGo(openRestore)"><span>↩️</span>Restaurer</button>
+      <button class="sheet-item" onclick="moreGo(toggleTheme)"><span>🌗</span>Thème</button>
+      <button class="sheet-item" onclick="moreGo(()=>document.getElementById('globalSearch').focus())"><span>🔎</span>Recherche</button>
+    </div>
+    <div class="sheet-row">
+      <label for="whoAmI2">👤 Cet appareil est utilisé par</label>
+      <select id="whoAmI2" onchange="setWho(this.value)"></select>
+    </div>
+    <div class="sheet-info" id="moreBackup"></div>
   </div>
 </div>
 
