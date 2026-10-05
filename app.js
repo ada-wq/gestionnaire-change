@@ -90,7 +90,7 @@ function editHolding(id) {
   document.getElementById('hMontant').value  = h.montant;
   document.getElementById('hNote').value     = h.remarque || '';
   editingHoldingId = id;
-  document.getElementById('holdingSubmitBtn').textContent = '✓ Mettre à jour';
+  document.getElementById('holdingSubmitBtn').textContent = 'Mettre à jour';
   document.getElementById('hPerson').focus();
 }
 function deleteHolding(id) {
@@ -118,14 +118,14 @@ function renderHoldings() {
     const eq     = fmtEuro(h.devise==='CFA' ? (h.montant||0)/customRate : (h.montant||0));
     const native = h.devise==='CFA' ? fmtCFA(h.montant||0) : fmtEuro(h.montant||0);
     return `<tr>
-      <td><span class="person-link" data-name="${esc(h.personne)}">${esc(h.personne)}</span></td>
-      <td><span class="badge ${h.devise==='EUR'?'badge-euro':'badge-cfa'}">${h.devise}</span></td>
-      <td class="num">${native}</td>
-      <td class="num" style="color:var(--gold);font-weight:600;">${eq}</td>
-      <td>${esc(h.remarque)||'—'}</td>
-      <td style="white-space:nowrap;">
-        <button class="act-btn act-edit" onclick="editHolding('${h.id}')">✏️</button>
-        <button class="act-btn act-del" onclick="deleteHolding('${h.id}')">🗑</button>
+      <td class="c-person"><span class="person-link" data-name="${esc(h.personne)}">${esc(h.personne)}</span></td>
+      <td class="c-cur"><span class="badge ${h.devise==='EUR'?'badge-euro':'badge-cfa'}">${h.devise}</span></td>
+      <td class="c-amt num" style="font-weight:600;">${native}</td>
+      <td class="c-eq num">${eq}</td>
+      <td class="c-note${h.remarque ? '' : ' is-empty'}">${esc(h.remarque)||'—'}</td>
+      <td class="c-act">
+        <button class="act-btn" onclick="editHolding('${h.id}')" title="Modifier">${svgIc('edit')}</button>
+        <button class="act-btn act-del" onclick="deleteHolding('${h.id}')" title="Supprimer">${svgIc('trash')}</button>
       </td>
     </tr>`;
   }).join('');
@@ -241,7 +241,7 @@ function submitPin(e) {
   if (val === KANGA_PIN) {
     localStorage.setItem('kanga_unlocked', '1');
     document.getElementById('pinModal').classList.remove('open');
-    toast('Appareil déverrouillé ✓', 'ok');
+    toast('Appareil déverrouillé', 'ok');
     const act = pendingAction; pendingAction = null;
     if (act) act();
   } else {
@@ -276,7 +276,12 @@ function submitAppLock(e) {
 // ══ THÈME (synchronisé via Firebase /settings/theme) ══
 function applyTheme(t) {
   document.documentElement.setAttribute('data-theme', t);
-  document.getElementById('themeBtn').textContent = t === 'dark' ? '☀️' : '🌙';
+  document.getElementById('themeBtn').innerHTML = svgIc(t === 'dark' ? 'sun' : 'moon');
+  const st = document.getElementById('themeState');
+  if (st) st.textContent = t === 'dark' ? 'Sombre' : 'Clair';
+  // couleur de la barre d'état du téléphone
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', t === 'dark' ? '#0b0e16' : '#f4f5f8');
 }
 function toggleTheme() {
   const t = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
@@ -287,7 +292,7 @@ function toggleTheme() {
 // ── TOAST (avec bouton Annuler optionnel) ──
 function toast(msg, type='', undoFn=null) {
   const el = document.getElementById('toast');
-  el.innerHTML = `<span>${msg}</span>` + (undoFn ? `<button class="toast-undo" onclick="doUndo()">↩ Annuler</button>` : '');
+  el.innerHTML = `<span>${msg}</span>` + (undoFn ? `<button class="toast-undo" onclick="doUndo()">Annuler</button>` : '');
   el.className = 'toast show ' + type;
   window._undoFn = undoFn;
   clearTimeout(undoTimer);
@@ -299,23 +304,20 @@ function doUndo() {
 }
 
 // ── CONNECTION ──
+// Retire les symboles (✓ ✗ ⏳ …) en tête des anciens libellés d'état
+function cleanStatus(text) { return String(text).replace(/^[^\wÀ-ÿ]+/, ''); }
+
 function setConn(state, text) {
   const p = document.getElementById('connPill');
-  document.getElementById('connText').textContent = text;
-  p.className = state === 'online' ? 'pill pill-conn' : state === 'sync' ? 'pill pill-sync' : 'pill pill-disco';
+  document.getElementById('connText').textContent = cleanStatus(text);
+  p.className = 'status ' + (state === 'online' ? 'st-ok' : state === 'sync' ? 'st-sync' : 'st-off');
 }
 
 // ── MIRROR STATUS ──
 function setMirror(state, text) {
   const p = document.getElementById('mirrorPill');
-  p.textContent = text;
-  const styles = {
-    ok:    'border-color:rgba(61,220,151,.4);background:var(--green-dim);color:var(--green)',
-    sync:  'border-color:var(--border2);background:var(--cfa-soft);color:var(--gold)',
-    error: 'border-color:rgba(255,122,110,.4);background:var(--red-dim);color:var(--red)',
-    idle:  'border-color:var(--border);background:var(--surface2);color:var(--text3)'
-  };
-  p.style.cssText = (styles[state]||styles.idle) + ';font-size:.7rem;display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:40px;border-style:solid;border-width:1px;';
+  p.className = 'status ' + ({ ok: 'st-ok', sync: 'st-sync', error: 'st-off' }[state] || 'st-idle');
+  p.innerHTML = '<span class="dot"></span>' + esc(cleanStatus(text));
 }
 
 // ════════════════════════════════════════════
@@ -337,14 +339,14 @@ async function syncMirror(manual = false) {
     await pruneSnaps();
     const ts = now.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
     const ds = now.toLocaleDateString('fr-FR');
-    setMirror('ok', `✅ ${ts}`);
+    setMirror('ok', `Sauvegardé à ${ts}`);
     document.getElementById('backupSub').innerHTML =
       `Dernière sauvegarde : <b>${ds} à ${ts}</b> · ${manual ? 'Manuelle' : 'Auto (modification)'}`;
-    if (manual) toast('☁️ Sauvegarde miroir créée', 'ok');
+    if (manual) toast('Sauvegarde créée', 'ok');
   } catch(e) {
     console.error(e);
-    setMirror('error', '✗ Échec');
-    if (manual) toast('Erreur sauvegarde miroir', 'err');
+    setMirror('error', 'Échec de la sauvegarde');
+    if (manual) toast('Erreur lors de la sauvegarde', 'err');
   }
 }
 
@@ -386,9 +388,9 @@ function renderSnapList(list, containerId, withBtn) {
     return `<div class="snap-item">
       <div class="snap-info">
         <div class="snap-date">${date} · ${time} ${tag}</div>
-        <div class="snap-meta">💶 ${s.euroCount} Euro · 💵 ${s.cfaCount} CFA · 📓 ${s.notesCount} notes</div>
+        <div class="snap-meta">${s.euroCount || 0} transactions Euro · ${s.cfaCount || 0} CFA · ${s.notesCount || 0} notes</div>
       </div>
-      ${withBtn ? `<button class="snap-restore-btn" onclick="confirmRestore('${s.key}','${date} à ${time}')">↩️ Restaurer</button>` : ''}
+      ${withBtn ? `<button class="snap-restore-btn" onclick="confirmRestore('${s.key}','${date} à ${time}')">${svgIc('restore')}Restaurer</button>` : ''}
     </div>`;
   }).join('');
 }
@@ -549,45 +551,94 @@ const HD = {
 // ════════════════════════════════════════════
 function fmtEuro(n) { return n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' €'; }
 function fmtCFA(n)  { return Math.round(n).toLocaleString('fr-FR') + ' CFA'; }
+// Icône du sprite SVG défini dans index.html
+function svgIc(name) { return `<svg class="ic"><use href="#i-${name}"/></svg>`; }
 function esc(s) { return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 // ════════════════════════════════════════════
 //  TABS
 // ════════════════════════════════════════════
+const PAGES = {
+  suivi:     ['Suivi', ''],
+  dash:      ['Tableau de bord', 'Soldes, montants détenus et dernières opérations'],
+  euro:      ['Euro', ''],
+  cfa:       ['CFA', ''],
+  analytics: ['Analyses', 'Entrées, sorties et tendances'],
+  notes:     ['Notes', 'Notes partagées']
+};
+let currentTab = 'suivi';
+
 function switchTab(tab) {
+  currentTab = tab;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
   document.getElementById(tab + 'Tab').classList.add('active');
   if (tab === 'analytics') renderAnalytics();
   if (tab === 'dash') renderDashboard();
   if (tab === 'suivi') renderSuivi();
+  document.getElementById('topbar').classList.remove('search-open');
   updateNav(tab);
+  updatePageHeader();
   window.scrollTo({ top: 0 });
 }
 
-// ── Navigation mobile : barre du bas, menu "Plus", bouton + ──
+// Titre et sous-titre de la barre du haut, selon la page affichée
+function updatePageHeader() {
+  const [title, sub] = PAGES[currentTab] || ['', ''];
+  let s = sub;
+  if (currentTab === 'euro' || currentTab === 'cfa') {
+    const arr = currentTab === 'euro' ? euroT : cfaT;
+    const bal = arr.reduce((a, b) => a + (b.entree || 0) - (b.sortie || 0), 0);
+    s = `Solde : ${currentTab === 'euro' ? fmtEuro(bal) : fmtCFA(bal)} · ${arr.length} transaction${arr.length > 1 ? 's' : ''}`;
+  } else if (currentTab === 'suivi') {
+    const open = [...euroT, ...cfaT].filter(t => t.statut === 'en_cours');
+    const late = open.filter(t => suiviAge(t) > SUIVI_ALERT_DAYS).length;
+    s = open.length ? `${open.length} à vérifier${late ? ` · ${late} en retard` : ''}` : 'Tout est à jour';
+  }
+  document.getElementById('pageTitle').textContent = title;
+  document.getElementById('pageSub').textContent = s;
+}
+
+// ── Navigation téléphone : barre du bas, menu "Plus", bouton + ──
 function updateNav(tab) {
   const main = ['dash', 'euro', 'cfa', 'suivi'];
   document.querySelectorAll('[data-nav]').forEach(b => {
     b.classList.toggle('active', b.dataset.nav === (main.includes(tab) ? tab : 'more'));
   });
-  document.getElementById('fab').classList.toggle('show', tab === 'euro' || tab === 'cfa');
+  document.getElementById('fab').classList.toggle('show', main.includes(tab));
 }
 function openMore() {
+  document.getElementById('moreConn').textContent = 'Connexion : ' + document.getElementById('connText').textContent;
   document.getElementById('moreBackup').innerHTML = document.getElementById('backupSub').innerHTML;
   document.getElementById('moreSheet').classList.add('open');
 }
-// depuis le Suivi : aller directement au formulaire d'ajout Euro ou CFA
-function goAdd(type) { switchTab(type); setTimeout(quickAdd, 60); }
 function closeMore() { document.getElementById('moreSheet').classList.remove('open'); }
 function moreGo(fn) { closeMore(); fn(); }
-// bouton + : amène au formulaire d'ajout de l'onglet courant
-function quickAdd() {
-  const tab = (document.querySelector('.tab.active') || {}).dataset?.tab;
-  if (tab !== 'euro' && tab !== 'cfa') return;
-  document.getElementById(tab + 'Form').scrollIntoView({ behavior: 'smooth', block: 'center' });
-  setTimeout(() => document.getElementById(tab === 'euro' ? 'ePerson' : 'cPerson').focus(), 400);
+function toggleSearch() {
+  const bar = document.getElementById('topbar');
+  bar.classList.toggle('search-open');
+  if (bar.classList.contains('search-open')) setTimeout(() => document.getElementById('globalSearch').focus(), 50);
 }
+
+// ── Nouvelle transaction : fenêtre Euro ou CFA ──
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function openAdd(type) {
+  closeModal('addChoiceModal');
+  const today = new Date().toISOString().split('T')[0];
+  const dateEl = document.getElementById(type === 'euro' ? 'eDate' : 'cDate');
+  if (!dateEl.value) dateEl.value = today;
+  document.getElementById(type === 'euro' ? 'addEuroModal' : 'addCfaModal').classList.add('open');
+  setTimeout(() => document.getElementById(type === 'euro' ? 'ePerson' : 'cPerson').focus(), 120);
+}
+function closeAdd(type) { closeModal(type === 'euro' ? 'addEuroModal' : 'addCfaModal'); }
+// sur les pages Euro / CFA on ouvre directement la bonne devise, sinon on demande
+function newTx() {
+  if (currentTab === 'euro' || currentTab === 'cfa') openAdd(currentTab);
+  else document.getElementById('addChoiceModal').classList.add('open');
+}
+// anciens noms conservés
+function goAdd(type) { openAdd(type); }
+function quickAdd() { newTx(); }
 
 // ════════════════════════════════════════════
 //  CONVERTISSEUR
@@ -729,6 +780,7 @@ function updateAll() {
   updateSuggestions();
   updateMonthSelector();
   renderSuivi();
+  updatePageHeader();
   saveLocalCache();
   if (document.getElementById('dashTab').classList.contains('active')) renderDashboard();
   if (document.getElementById('analyticsTab').classList.contains('active')) renderAnalytics();
@@ -779,18 +831,18 @@ function displayT(type, rows, totalCount, maxPage) {
     const tr = body.insertRow();
     const sc = t.solde > 0 ? 'val-pos' : t.solde < 0 ? 'val-neg' : 'val-neu';
     tr.innerHTML = `
-      <td class="num">${t.date}</td>
-      <td><span class="badge ${t.operation==='Entrée'?'badge-in':'badge-out'}">${t.operation}</span>${suiviBadge(t)}</td>
-      <td class="val-in">${t.entree>0?fmt(t.entree):'—'}</td>
-      <td class="val-out">${t.sortie>0?fmt(t.sortie):'—'}</td>
-      <td class="${sc}">${fmt(t.solde)}</td>
-      <td><span class="person-link" data-name="${esc(t.personne)}">${esc(t.personne)}</span></td>
-      <td>${t.categorie?`<span class="badge badge-cat">${esc(t.categorie)}</span>`:'—'}</td>
-      <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(t.remarque||'')}">${esc(t.remarque)||'—'}</td>
-      <td style="white-space:nowrap;">
-        <button class="act-btn act-edit" onclick="openEdit('${type}','${t.id}')">✏️</button>
-        <button class="act-btn act-dup"  onclick="dupT('${type}','${t.id}')" title="Dupliquer">⧉</button>
-        <button class="act-btn act-del"  onclick="delT('${type}','${t.id}')">🗑</button>
+      <td class="c-date">${t.date}</td>
+      <td class="c-op"><span class="badge ${t.operation==='Entrée'?'badge-in':'badge-out'}">${t.operation}</span>${suiviBadge(t)}</td>
+      <td class="c-in ${t.entree>0?'val-in':'is-empty'}">${t.entree>0?'+'+fmt(t.entree):'—'}</td>
+      <td class="c-out ${t.sortie>0?'val-out':'is-empty'}">${t.sortie>0?'−'+fmt(t.sortie):'—'}</td>
+      <td class="c-solde ${sc}">${fmt(t.solde)}</td>
+      <td class="c-person"><span class="person-link" data-name="${esc(t.personne)}">${esc(t.personne)}</span></td>
+      <td class="c-cat${t.categorie?'':' is-empty'}">${t.categorie?`<span class="badge badge-cat">${esc(t.categorie)}</span>`:'—'}</td>
+      <td class="c-note${t.remarque?'':' is-empty'}" title="${esc(t.remarque||'')}">${esc(t.remarque)||'—'}</td>
+      <td class="c-act">
+        <button class="act-btn" onclick="openEdit('${type}','${t.id}')" title="Modifier">${svgIc('edit')}</button>
+        <button class="act-btn" onclick="dupT('${type}','${t.id}')" title="Dupliquer à aujourd'hui">${svgIc('copy')}</button>
+        <button class="act-btn act-del" onclick="delT('${type}','${t.id}')" title="Supprimer">${svgIc('trash')}</button>
       </td>`;
   });
   renderPagination(type, maxPage);
@@ -929,6 +981,7 @@ document.getElementById('euroForm').addEventListener('submit', function(e) {
     logAction('Ajout', 'euro', tx);
     form.reset();
     document.getElementById('eDate').value = new Date().toISOString().split('T')[0];
+    closeAdd('euro');
     toast('Transaction ajoutée', 'ok');
   });
 });
@@ -955,6 +1008,7 @@ document.getElementById('cfaForm').addEventListener('submit', function(e) {
     logAction('Ajout', 'cfa', tx);
     form.reset();
     document.getElementById('cDate').value = new Date().toISOString().split('T')[0];
+    closeAdd('cfa');
     toast('Transaction ajoutée', 'ok');
   });
 });
@@ -1011,13 +1065,13 @@ function renderDashboard() {
     const amt = t.entree > 0 ? t.entree : t.sortie;
     const fmt = t.cur==='EUR' ? fmtEuro : fmtCFA;
     return `<tr>
-      <td class="num">${t.date}</td>
-      <td><span class="badge ${t.cur==='EUR'?'badge-euro':'badge-cfa'}">${t.cur}</span></td>
-      <td><span class="badge ${t.operation==='Entrée'?'badge-in':'badge-out'}">${t.operation}</span></td>
-      <td class="${t.entree>0?'val-in':'val-out'}">${fmt(amt)}</td>
-      <td><span class="person-link" data-name="${esc(t.personne)}">${esc(t.personne)}</span></td>
-      <td>${t.categorie?`<span class="badge badge-cat">${esc(t.categorie)}</span>`:'—'}</td>
-      <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(t.remarque)||'—'}</td>
+      <td class="c-date">${t.date}</td>
+      <td class="c-cur"><span class="badge ${t.cur==='EUR'?'badge-euro':'badge-cfa'}">${t.cur}</span></td>
+      <td class="c-op"><span class="badge ${t.operation==='Entrée'?'badge-in':'badge-out'}">${t.operation}</span></td>
+      <td class="c-amt ${t.entree>0?'val-in':'val-out'}">${t.entree>0?'+':'−'}${fmt(amt)}</td>
+      <td class="c-person"><span class="person-link" data-name="${esc(t.personne)}">${esc(t.personne)}</span></td>
+      <td class="c-cat${t.categorie?'':' is-empty'}">${t.categorie?`<span class="badge badge-cat">${esc(t.categorie)}</span>`:'—'}</td>
+      <td class="c-note${t.remarque?'':' is-empty'}">${esc(t.remarque)||'—'}</td>
     </tr>`;
   }).join('') : '<tr><td colspan="7" class="empty">Aucune transaction</td></tr>';
 
@@ -1268,7 +1322,7 @@ function autoSaveNote() {
       notes[i].content = document.getElementById('neBody').value;
       notes[i].updatedAt = new Date().toISOString();
       saveNotes(); renderNotesList();
-      document.getElementById('neStatus').textContent = 'Sauvegardé ✓';
+      document.getElementById('neStatus').textContent = 'Enregistré';
     }
   }, 600);
 }
@@ -1364,14 +1418,14 @@ document.addEventListener('DOMContentLoaded', () => {
   mirrorDb.ref('/latest').once('value').then(s => {
     if (s.exists()) {
       const d = s.val(), dt = new Date(d.savedAt);
-      setMirror('ok', '✅ OK');
+      setMirror('ok', 'Sauvegarde à jour');
       document.getElementById('backupSub').innerHTML =
         `Dernière sauvegarde : <b>${dt.toLocaleDateString('fr-FR')} à ${dt.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</b> · ${d.label}`;
     } else {
       document.getElementById('backupSub').textContent = 'Aucune sauvegarde encore — ajoutez une transaction pour en créer une.';
     }
   }).catch(() => {
-    setMirror('error', '✗ Miroir inaccessible');
+    setMirror('error', 'Miroir inaccessible');
     document.getElementById('backupSub').textContent = 'Impossible de joindre la base miroir.';
   });
 
@@ -1435,7 +1489,7 @@ function suiviBadge(t) {
   if (!t.statut) return '';
   const done = t.statut === 'termine';
   const who = t.contrepartie ? `Suivi avec ${esc(t.contrepartie)}` : 'Sans contrepartie';
-  return ` <span class="badge ${done ? 'badge-suivi-termine' : 'badge-suivi-encours'}" title="${who}">${done ? '✓ terminé' : '⏳ en cours'}</span>`;
+  return ` <span class="badge badge-dot ${done ? 'badge-suivi-termine' : 'badge-suivi-encours'}" title="${who}">${done ? 'Terminé' : 'En cours'}</span>`;
 }
 
 // Ce qu'il faut vérifier selon la devise et le sens de la transaction
@@ -1453,18 +1507,18 @@ function suiviRowHTML(t, done) {
     : suiviLabel(t);
   const age = suiviAge(t);
   const late = !done && age > SUIVI_ALERT_DAYS;
-  const chk = done ? '' : `<td><input type="checkbox" ${suiviSel.has(t.cur + ':' + t.id) ? 'checked' : ''} onchange="toggleSuivi('${t.cur}','${t.id}',this.checked)"></td>`;
+  const chk = done ? '' : `<td class="c-chk"><input type="checkbox" ${suiviSel.has(t.cur + ':' + t.id) ? 'checked' : ''} onchange="toggleSuivi('${t.cur}','${t.id}',this.checked)"></td>`;
   return `<tr>${chk}
-    <td class="num">${t.date}${late ? ` <span class="badge badge-suivi-late" title="En cours depuis ${age} jours">⚠ ${age} j</span>` : ''}</td>
-    <td><span class="badge ${t.cur==='euro'?'badge-euro':'badge-cfa'}">${t.cur==='euro'?'EUR':'CFA'}</span></td>
-    <td><span class="badge ${t.operation==='Entrée'?'badge-in':'badge-out'}">${t.operation}</span></td>
-    <td class="${t.entree>0?'val-in':'val-out'}">${fmt(amt)}</td>
-    <td><span class="person-link" data-name="${esc(t.personne)}">${esc(t.personne)}</span></td>
-    <td>${t.contrepartie ? `<span class="badge badge-cat">${esc(t.contrepartie)}</span>` : '—'}</td>
-    <td>${last}</td>
-    <td style="white-space:nowrap;">${done
-      ? `<button class="act-btn act-dup" onclick="reopenSuivi('${t.cur}','${t.id}')">↩ Rouvrir</button>`
-      : `<button class="act-btn act-edit" onclick="openClose('${t.cur}','${t.id}')">✓ Terminé</button>`}</td>
+    <td class="c-date">${t.date}${late ? ` <span class="badge badge-suivi-late" title="En cours depuis ${age} jours">${svgIc('alert')}${age} j</span>` : ''}</td>
+    <td class="c-cur"><span class="badge ${t.cur==='euro'?'badge-euro':'badge-cfa'}">${t.cur==='euro'?'EUR':'CFA'}</span></td>
+    <td class="c-op"><span class="badge ${t.operation==='Entrée'?'badge-in':'badge-out'}">${t.operation}</span></td>
+    <td class="c-amt ${t.entree>0?'val-in':'val-out'}">${t.entree>0?'+':'−'}${fmt(amt)}</td>
+    <td class="c-person"><span class="person-link" data-name="${esc(t.personne)}">${esc(t.personne)}</span></td>
+    <td class="c-who${t.contrepartie ? '' : ' is-empty'}">${t.contrepartie ? `<span class="badge badge-cat">${svgIc('user')}${esc(t.contrepartie)}</span>` : '—'}</td>
+    <td class="c-note">${last}</td>
+    <td class="c-act">${done
+      ? `<button class="act-btn txt" onclick="reopenSuivi('${t.cur}','${t.id}')">${svgIc('restore')}Rouvrir</button>`
+      : `<button class="act-btn txt primary" onclick="openClose('${t.cur}','${t.id}')">${svgIc('check')}Terminer</button>`}</td>
   </tr>`;
 }
 
@@ -1492,7 +1546,7 @@ function renderSuivi() {
   document.getElementById('heroLate').textContent = late;
   document.getElementById('heroAmt').textContent  = amtTxt;
   document.getElementById('kpiSuivi').textContent = openAll.length;
-  document.getElementById('kpiSuiviSub').textContent = late ? `⚠ ${late} en retard (> ${SUIVI_ALERT_DAYS} j)` : (openAll.length ? 'Tout est à jour' : 'Rien à vérifier');
+  document.getElementById('kpiSuiviSub').textContent = late ? `${late} en retard (plus de ${SUIVI_ALERT_DAYS} jours)` : (openAll.length ? 'Aucun retard' : 'Rien à vérifier');
 
   const shown = f ? all.filter(t => t.contrepartie === f) : all;
   // les plus anciens d'abord : ce sont ceux à relancer en priorité
@@ -1547,7 +1601,8 @@ function suiviAge(t) {
 
 function renderSuiviSummary(openAll) {
   const box = document.getElementById('suiviSummary');
-  if (!openAll.length) { box.innerHTML = '<div class="sum-empty">Aucune transaction en cours à vérifier. 🎉</div>'; return; }
+  if (!openAll.length) { box.innerHTML = '<div class="sum-empty">Aucune transaction en cours à vérifier.</div>'; return; }
+  const current = document.getElementById('suiviFPerson').value;
   const bp = {};
   openAll.forEach(t => {
     const k = t.contrepartie || '';
@@ -1563,10 +1618,13 @@ function renderSuiviSummary(openAll) {
     const parts = [];
     if (o.eur) parts.push(fmtEuro(o.eur));
     if (o.cfa) parts.push(fmtCFA(o.cfa));
-    return `<div class="sum-card" onclick="setSuiviFilter('${esc(k)}')">
-      <div class="sum-name"><span>${k ? esc(k) : 'Sans contrepartie'}</span><span class="sum-count">${o.n} en cours</span></div>
-      <div class="sum-amt">${parts.join(' · ')} à vérifier</div>
-      ${o.late ? `<div class="sum-late">⚠ ${o.late} en retard (> ${SUIVI_ALERT_DAYS} j)</div>` : ''}
+    return `<div class="sum-card${k && k === current ? ' active' : ''}" onclick="setSuiviFilter('${esc(k)}')">
+      <div class="sum-av">${k ? esc(k.charAt(0).toUpperCase()) : '?'}</div>
+      <div class="sum-body">
+        <div class="sum-name"><span>${k ? esc(k) : 'Sans contrepartie'}</span><span class="sum-count">${o.n} en cours</span></div>
+        <div class="sum-amt">${parts.join(' · ')}</div>
+        ${o.late ? `<div class="sum-late">${svgIc('alert')}${o.late} en retard</div>` : ''}
+      </div>
     </div>`;
   }).join('');
 }
@@ -1590,7 +1648,7 @@ function updateBulkBar() {
   const n = suiviSel.size;
   const btn = document.getElementById('suiviBulkBtn');
   btn.style.display = n ? '' : 'none';
-  btn.textContent = `✓ Terminer la sélection (${n})`;
+  btn.innerHTML = `${svgIc('check')}Terminer la sélection (${n})`;
   const all = document.getElementById('suiviChkAll');
   if (all) all.checked = n > 0 && n === suiviOpenShown.length;
 }
@@ -1711,9 +1769,9 @@ function renderTrash() {
         <div class="snap-date">${t.date} · ${esc(t.personne)} <span class="badge ${e.type==='euro'?'badge-euro':'badge-cfa'}">${e.type==='euro'?'EUR':'CFA'}</span></div>
         <div class="snap-meta">${t.operation} ${fmt(t.entree || t.sortie)} · supprimée le ${new Date(e.deletedAt).toLocaleDateString('fr-FR')} · encore ${left} j</div>
       </div>
-      <div style="display:flex;gap:6px;">
-        <button class="snap-restore-btn" onclick="restoreFromTrash('${t.id}')">↩ Restaurer</button>
-        <button class="act-btn act-del" onclick="purgeTrash('${t.id}')" title="Supprimer définitivement">✕</button>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <button class="snap-restore-btn" onclick="restoreFromTrash('${t.id}')">${svgIc('restore')}Restaurer</button>
+        <button class="act-btn act-del" onclick="purgeTrash('${t.id}')" title="Supprimer définitivement">${svgIc('x')}</button>
       </div>
     </div>`;
   }).join('');
@@ -1758,6 +1816,17 @@ function hydrateFromCache() {
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }
+
+// Fenêtres : clic sur le fond ou touche Échap pour fermer (sauf la demande de code)
+document.addEventListener('click', e => {
+  const o = e.target;
+  if (o.classList && o.classList.contains('modal-overlay') && o.id !== 'pinModal') o.classList.remove('open');
+});
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  document.querySelectorAll('.modal-overlay.open, .sheet-overlay.open').forEach(o => { if (o.id !== 'pinModal') o.classList.remove('open'); });
+  document.getElementById('gsResults').classList.remove('show');
+});
 
 // Clic sur un nom de personne (délégation : évite d'injecter des noms dans des attributs onclick)
 document.addEventListener('click', e => {

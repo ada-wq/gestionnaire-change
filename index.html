@@ -1,476 +1,448 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>KANGA · Gestionnaire Euro/CFA</title>
+<title>KANGA · Gestion Euro / CFA</title>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700;9..144,900&family=Outfit:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#4338ca">
+<meta name="theme-color" content="#f4f5f8">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="KANGA">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<!-- VERROU D'ACCÈS — écran plein bloquant l'application avant saisie du code -->
+<!-- Icônes (sprite SVG) : <svg class="ic"><use href="#i-nom"/></svg> -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <symbol id="i-suivi" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/><path d="m9 13 2 2 4-4"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/></symbol>
+  <symbol id="i-euro" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></symbol>
+  <symbol id="i-cfa" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/><path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 20h18"/><path d="M6 16v-5M11 16V6M16 16v-8M21 16v-3"/></symbol>
+  <symbol id="i-notes" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M9 13h7M9 17h5"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="m6 7 1 13h10l1-13"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 18a5 5 0 1 1 .9-9.9A6 6 0 0 1 19 10a4 4 0 0 1-1 8"/><path d="M12 12v8M9 15l3-3 3 3"/></symbol>
+  <symbol id="i-restore" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1.5"/><rect x="14" y="4" width="6" height="6" rx="1.5"/><rect x="4" y="14" width="6" height="6" rx="1.5"/><rect x="14" y="14" width="6" height="6" rx="1.5"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6.5 6.5 0 0 1 3.5 6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4V4h11v1"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5"/><path d="M4 20h16"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 20V9M7 14l5-5 5 5"/><path d="M4 4h16"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+  <symbol id="i-swap" viewBox="0 0 24 24"><path d="M4 8h14l-3-3M20 16H6l3 3"/></symbol>
+  <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h13v4"/><path d="M3 7v11a2 2 0 0 0 2 2h15V9H5a2 2 0 0 1-2-2z"/><path d="M16 14.5h.01"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="m3 7 6 6 4-4 8 8"/><path d="M15 17h6v-6"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-pie" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9h-9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/></symbol>
+</svg>
+
+<!-- VERROU D'ACCÈS -->
 <div class="app-lock" id="appLock">
   <div class="app-lock-box">
-    <div class="app-lock-icon">🔒</div>
+    <div class="brand-mark lg">₣</div>
     <div class="app-lock-brand">KANGA</div>
-    <p class="app-lock-text">Entrez le code d'accès à 4 chiffres pour ouvrir l'application.</p>
+    <p class="app-lock-text">Entrez votre code d'accès pour ouvrir l'application.</p>
     <form id="appLockForm" onsubmit="return submitAppLock(event)">
-      <input type="password" id="appLockInput" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="••••" autocomplete="off">
+      <input type="password" id="appLockInput" class="code-input" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="••••" autocomplete="off">
       <div class="app-lock-error" id="appLockError"></div>
-      <button type="submit" class="btn btn-primary" style="width:100%;margin-top:14px;">Déverrouiller</button>
+      <button type="submit" class="btn btn-primary btn-block">Déverrouiller</button>
     </form>
   </div>
 </div>
 
-<div class="wrap">
+<div class="app">
 
-<!-- HEADER -->
-<div class="header">
-  <div class="brand">
-    <div class="brand-icon">₣</div>
-    <div>
-      <div class="brand-name">KANGA</div>
-      <div class="brand-sub">Gestionnaire Euro · CFA</div>
-    </div>
-  </div>
-  <div class="global-search-wrap">
-    <span class="gs-icon">🔎</span>
-    <input type="text" id="globalSearch" placeholder="Rechercher une personne, un montant, une date, une remarque..." oninput="onGlobalSearch(this.value)" onfocus="onGlobalSearch(this.value)">
-    <div class="gs-results" id="gsResults"></div>
-  </div>
-  <div class="header-right">
-    <div class="pill pill-sync" id="connPill"><div class="dot pulse"></div><span id="connText">Connexion...</span></div>
-    <span class="live-badge" style="background:rgba(255,255,255,.16);"><span class="live-dot"></span>LIVE</span>
-    <select id="whoAmI" class="who-select" onchange="setWho(this.value)" title="Qui utilise cet appareil ? (indiqué dans le journal)"></select>
-    <button class="theme-toggle" id="themeBtn" onclick="toggleTheme()" title="Basculer clair/sombre">☀️</button>
-  </div>
-</div>
-
-<!-- BACKUP BAR -->
-<div class="backup-bar">
-  <div class="backup-left">
-    <div class="backup-shield">🛡️</div>
-    <div>
-      <div class="backup-label">Sauvegarde miroir Firebase</div>
-      <div class="backup-sub" id="backupSub">Initialisation...</div>
-    </div>
-  </div>
-  <div class="backup-actions">
-    <span class="pill" id="mirrorPill" style="border-color:var(--border);background:var(--surface2);color:var(--text3);font-size:.7rem;">⏳ En attente</span>
-    <button class="btn-sm btn-gold" onclick="syncMirror(true)">☁️ Sauvegarder</button>
-    <button class="btn-sm btn-blue" onclick="openHistory()">📋 Historique</button>
-    <button class="btn-sm btn-purple" onclick="openRestore()">↩️ Restaurer</button>
-    <button class="btn-sm btn-gold" onclick="openTrash()">🗑 Corbeille <span id="trashCount"></span></button>
-    <button class="btn-sm btn-blue" onclick="openLog()">📜 Journal</button>
-  </div>
-</div>
-
-<!-- KPI -->
-<div class="kpi-grid">
-  <div class="kpi kpi-suivi" data-icon="🔗" onclick="switchTab('suivi')" style="cursor:pointer;">
-    <div class="kpi-label">Suivi en cours</div>
-    <div class="kpi-value" id="kpiSuivi">—</div>
-    <div class="kpi-sub" id="kpiSuiviSub">—</div>
-  </div>
-  <div class="kpi kpi-euro" data-icon="💶">
-    <div class="kpi-label">Solde Euro</div>
-    <div class="kpi-value" id="kpiEuro">—</div>
-    <div class="kpi-sub" id="kpiEuroSub">—</div>
-  </div>
-  <div class="kpi kpi-cfa" data-icon="💵">
-    <div class="kpi-label">Solde CFA</div>
-    <div class="kpi-value" id="kpiCFA">—</div>
-    <div class="kpi-sub" id="kpiCFASub">—</div>
-  </div>
-  <div class="kpi kpi-gold" data-icon="🌍">
-    <div class="kpi-label">Patrimoine total (équiv. €)</div>
-    <div class="kpi-value" id="kpiTotal">—</div>
-    <div class="kpi-sub" id="kpiTotalSub">au taux choisi</div>
-    <div class="rate-ctrl">
-      <span style="font-size:.68rem;color:rgba(255,255,255,.75);">1€ =</span>
-      <input type="number" id="totalRate" step="0.001" placeholder="665" oninput="applyTotalRate()">
-      <span style="font-size:.68rem;color:rgba(255,255,255,.75);">CFA</span>
-      <button type="button" onclick="resetTotalRate()">officiel</button>
-    </div>
-  </div>
-  <div class="kpi kpi-green" data-icon="📈">
-    <div class="kpi-label">Entrées ce mois</div>
-    <div class="kpi-value" id="kpiMIn">—</div>
-    <div class="kpi-sub" id="kpiMInSub">—</div>
-  </div>
-  <div class="kpi kpi-red" data-icon="📉">
-    <div class="kpi-label">Sorties ce mois</div>
-    <div class="kpi-value" id="kpiMOut">—</div>
-    <div class="kpi-sub" id="kpiMOutSub">—</div>
-  </div>
-  <div class="kpi kpi-neutral" data-icon="🔄">
-    <div class="kpi-label">Transactions <span class="live-badge"><span class="live-dot"></span>LIVE</span></div>
-    <div class="kpi-value" id="kpiTx">—</div>
-    <div class="kpi-sub" id="kpiTxSub">—</div>
-  </div>
-</div>
-
-<!-- TABS -->
-<div class="tabs-wrap">
-  <button class="tab tab-main active" data-tab="suivi" onclick="switchTab('suivi')">🔗 Suivi <span class="tab-badge" id="suiviBadge" style="display:none;">0</span></button>
-  <button class="tab" data-tab="dash" onclick="switchTab('dash')">🏠 Tableau de bord</button>
-  <button class="tab" data-tab="euro" onclick="switchTab('euro')">💶 Euro</button>
-  <button class="tab" data-tab="cfa" onclick="switchTab('cfa')">💵 CFA</button>
-  <button class="tab" data-tab="analytics" onclick="switchTab('analytics')">📊 Analyses</button>
-  <button class="tab" data-tab="notes" onclick="switchTab('notes')">📓 Notes</button>
-</div>
-
-<!-- ══════════ DASHBOARD ══════════ -->
-<div id="dashTab" class="tab-content active">
-  <div class="dash-grid">
-    <!-- Convertisseur -->
-    <div class="card" style="margin-bottom:0;">
-      <div class="card-title">🔁 Convertisseur Euro ⇄ CFA</div>
-      <div class="converter">
-        <div class="fgroup"><label>Euros (€)</label><input type="number" id="cvEur" step="0.01" placeholder="0.00" oninput="convert('eur')" class="num"></div>
-        <button class="cv-swap" onclick="swapConvert()" title="Inverser">⇄</button>
-        <div class="fgroup"><label>Francs CFA</label><input type="number" id="cvCfa" step="1" placeholder="0" oninput="convert('cfa')" class="num"></div>
+  <!-- ═════════ MENU LATÉRAL (ordinateur) ═════════ -->
+  <aside class="sidebar">
+    <div class="sb-brand">
+      <div class="brand-mark">₣</div>
+      <div>
+        <div class="brand-name">KANGA</div>
+        <div class="brand-sub">Gestion Euro · CFA</div>
       </div>
-      <div class="cv-rate-row">
-        <div class="fgroup"><label>Taux (1 € = ... CFA)</label><input type="number" id="cvRate" step="0.001" value="655.957" oninput="convert('eur')" class="num"></div>
-        <button class="cv-preset" onclick="setRate(655.957)">Officiel 655,957</button>
-        <button class="cv-preset" onclick="setRate(670)">670</button>
-        <button class="cv-preset" onclick="setRate(675)">675</button>
-        <button class="cv-preset" onclick="setRate(700)">700</button>
+    </div>
+
+    <nav class="sb-nav">
+      <div class="sb-label">Principal</div>
+      <button class="tab active" data-tab="suivi" onclick="switchTab('suivi')"><svg class="ic"><use href="#i-suivi"/></svg><span>Suivi</span><span class="tab-badge" id="suiviBadge" style="display:none;">0</span></button>
+      <button class="tab" data-tab="dash" onclick="switchTab('dash')"><svg class="ic"><use href="#i-home"/></svg><span>Tableau de bord</span></button>
+      <button class="tab" data-tab="euro" onclick="switchTab('euro')"><svg class="ic"><use href="#i-euro"/></svg><span>Euro</span></button>
+      <button class="tab" data-tab="cfa" onclick="switchTab('cfa')"><svg class="ic"><use href="#i-cfa"/></svg><span>CFA</span></button>
+
+      <div class="sb-label">Outils</div>
+      <button class="tab" data-tab="analytics" onclick="switchTab('analytics')"><svg class="ic"><use href="#i-chart"/></svg><span>Analyses</span></button>
+      <button class="tab" data-tab="notes" onclick="switchTab('notes')"><svg class="ic"><use href="#i-notes"/></svg><span>Notes</span></button>
+
+      <div class="sb-label">Données</div>
+      <button class="sb-link" onclick="openHistory()"><svg class="ic"><use href="#i-history"/></svg><span>Sauvegardes</span></button>
+      <button class="sb-link" onclick="openTrash()"><svg class="ic"><use href="#i-trash"/></svg><span>Corbeille</span><span class="sb-count" id="trashCount"></span></button>
+      <button class="sb-link" onclick="openLog()"><svg class="ic"><use href="#i-list"/></svg><span>Journal</span></button>
+    </nav>
+
+    <div class="sb-footer">
+      <div class="sb-status">
+        <span class="status st-sync" id="connPill"><span class="dot"></span><span id="connText">Connexion…</span></span>
+        <span class="status st-idle" id="mirrorPill"><span class="dot"></span>En attente</span>
       </div>
-      <div class="cv-result" id="cvResult">Saisissez un montant pour convertir.</div>
-    </div>
-    <!-- Répartition donut -->
-    <div class="chart-card" style="margin-bottom:0;">
-      <div class="chart-title">⚖️ Balance globale (équiv. €)</div>
-      <div class="donut-wrap" id="dashDonut"></div>
-    </div>
-  </div>
-
-  <!-- Argent détenu par des personnes -->
-  <div class="card">
-    <div class="card-title">👥 Argent détenu par des personnes</div>
-    <form id="holdingForm" onsubmit="return addHolding(event)">
-      <div class="form-grid">
-        <div class="fgroup"><label>Personne</label><input type="text" id="hPerson" required placeholder="Nom" list="personsList"></div>
-        <div class="fgroup"><label>Devise</label><select id="hDevise"><option value="EUR">Euro (€)</option><option value="CFA">CFA (FCFA)</option></select></div>
-        <div class="fgroup"><label>Montant</label><input type="number" id="hMontant" step="0.01" min="0" required placeholder="0.00"></div>
-        <div class="fgroup"><label>Remarque</label><input type="text" id="hNote" placeholder="Optionnel"></div>
+      <div class="sb-backup" id="backupSub">Initialisation…</div>
+      <div class="sb-user">
+        <div class="avatar"><svg class="ic"><use href="#i-user"/></svg></div>
+        <select id="whoAmI" class="who-select" onchange="setWho(this.value)" title="Qui utilise cet appareil ? (indiqué dans le journal)"></select>
+        <button class="icon-btn" id="themeBtn" onclick="toggleTheme()" title="Thème clair / sombre"><svg class="ic"><use href="#i-moon"/></svg></button>
       </div>
-      <button type="submit" class="btn btn-primary" id="holdingSubmitBtn">+ Ajouter</button>
-    </form>
-  </div>
-
-  <div class="table-card">
-    <div class="table-head"><h2>Détail des montants détenus</h2><span class="table-count" id="holdingsCount">—</span></div>
-    <div class="table-scroll">
-      <table>
-        <thead><tr><th>Personne</th><th>Devise</th><th>Montant</th><th>Équiv. €</th><th>Remarque</th><th>Actions</th></tr></thead>
-        <tbody id="holdingsBody"></tbody>
-      </table>
     </div>
-  </div>
+  </aside>
 
-  <!-- Dernières transactions -->
-  <div class="table-card">
-    <div class="table-head"><h2>🕑 Dernières transactions (toutes devises)</h2><span class="table-count" id="recentCount">—</span></div>
-    <div class="table-scroll">
-      <table>
-        <thead><tr><th>Date</th><th>Devise</th><th>Op.</th><th>Montant</th><th>Personne</th><th>Catégorie</th><th>Remarque</th></tr></thead>
-        <tbody id="recentBody"></tbody>
-      </table>
-    </div>
-  </div>
+  <!-- ═════════ ZONE PRINCIPALE ═════════ -->
+  <div class="main">
+    <header class="topbar" id="topbar">
+      <div class="tb-brand-m"><div class="brand-mark sm">₣</div></div>
+      <div class="tb-title">
+        <h1 id="pageTitle">Suivi</h1>
+        <div class="tb-sub" id="pageSub"></div>
+      </div>
+      <div class="global-search-wrap">
+        <svg class="ic gs-icon"><use href="#i-search"/></svg>
+        <input type="text" id="globalSearch" placeholder="Rechercher une personne, un montant, une date…" oninput="onGlobalSearch(this.value)" onfocus="onGlobalSearch(this.value)" autocomplete="off">
+        <div class="gs-results" id="gsResults"></div>
+      </div>
+      <div class="tb-actions">
+        <button class="icon-btn tb-search-btn" onclick="toggleSearch()" title="Rechercher"><svg class="ic"><use href="#i-search"/></svg></button>
+        <button class="btn btn-primary tb-add" onclick="newTx()"><svg class="ic"><use href="#i-plus"/></svg><span>Nouvelle transaction</span></button>
+      </div>
+    </header>
 
-  <!-- Balances par personne -->
-  <div class="analytics-grid">
-    <div class="chart-card">
-      <div class="chart-title">💶 Balance nette par personne — Euro</div>
-      <div class="bar-chart" id="dashBalEuro"></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-title">💵 Balance nette par personne — CFA</div>
-      <div class="bar-chart" id="dashBalCfa"></div>
-    </div>
-  </div>
-</div>
+    <main class="content">
 
-<!-- ══════════ EURO TAB ══════════ -->
-<div id="euroTab" class="tab-content">
-  <div class="filters">
-    <div class="fg"><label>Recherche</label><input type="text" id="euroSrch" placeholder="Nom, remarque, catégorie..." oninput="filterChanged('euro')"></div>
-    <div class="fg"><label>Opération</label>
-      <select id="euroFOp" onchange="filterChanged('euro')">
-        <option value="">Toutes</option><option value="Entrée">Entrées</option><option value="Sortie">Sorties</option>
-      </select>
-    </div>
-    <div class="fg"><label>Catégorie</label><select id="euroFCat" onchange="filterChanged('euro')"><option value="">Toutes</option></select></div>
-    <div class="fg"><label>Date début</label><input type="date" id="euroFFrom" onchange="filterChanged('euro')"></div>
-    <div class="fg"><label>Date fin</label><input type="date" id="euroFTo" onchange="filterChanged('euro')"></div>
-    <button class="btn-reset" onclick="resetFilters('euro')">✕ Réinitialiser</button>
-  </div>
-
-  <div class="card">
-    <div class="card-title">➕ Nouvelle transaction Euro</div>
-    <form id="euroForm">
-      <div class="form-grid">
-        <div class="fgroup"><label>Date</label><input type="date" id="eDate" required></div>
-        <div class="fgroup"><label>Opération</label>
-          <select id="eOp" required><option value="Entrée">Entrée</option><option value="Sortie">Sortie</option></select>
+      <!-- ═════════ SUIVI (accueil) ═════════ -->
+      <section id="suiviTab" class="tab-content active">
+        <div class="stat-row">
+          <div class="stat">
+            <div class="stat-label"><span class="stat-ic amber"><svg class="ic"><use href="#i-suivi"/></svg></span>En cours</div>
+            <div class="stat-value" id="heroOpen">0</div>
+          </div>
+          <div class="stat warn">
+            <div class="stat-label"><span class="stat-ic red"><svg class="ic"><use href="#i-alert"/></svg></span>En retard (plus de 7 jours)</div>
+            <div class="stat-value" id="heroLate">0</div>
+          </div>
+          <div class="stat wide">
+            <div class="stat-label"><span class="stat-ic brand"><svg class="ic"><use href="#i-wallet"/></svg></span>Montant à vérifier</div>
+            <div class="stat-value sm" id="heroAmt">—</div>
+          </div>
         </div>
-        <div class="fgroup"><label>Entrée (€)</label><input type="number" id="eIn" step="0.01" min="0" placeholder="0.00" oninput="syncOp('eIn','eOut','eOp')"></div>
-        <div class="fgroup"><label>Sortie (€)</label><input type="number" id="eOut" step="0.01" min="0" placeholder="0.00" oninput="syncOp('eIn','eOut','eOp')"></div>
-        <div class="fgroup"><label>Personne</label><input type="text" id="ePerson" required placeholder="Nom" list="personsList"></div>
-        <div class="fgroup"><label>Catégorie</label><input type="text" id="eCat" placeholder="Ex: Transfert" list="catsList"></div>
-        <div class="fgroup"><label>Taux</label><input type="number" id="eRate" step="0.01" placeholder="Optionnel"></div>
-      </div>
-      <div class="form-grid" style="max-width:600px;">
-        <div class="fgroup"><label>Statut</label><select id="eStatut"><option value="en_cours">En cours</option><option value="termine">Terminé</option></select></div>
-        <div class="fgroup"><label>Suivi avec (facultatif)</label><select id="eSuivi"></select></div>
-      </div>
-      <div class="fgroup"><label>Remarque</label><textarea id="eNote" placeholder="Détails..."></textarea></div>
-      <button type="submit" class="btn btn-primary" style="margin-top:14px;">+ Ajouter</button>
-    </form>
-  </div>
 
-  <div class="table-card">
-    <div class="table-head"><h2>Historique Euro</h2><span class="table-count" id="euroCount">—</span></div>
-    <div id="euroLoading" class="loading">Chargement...</div>
-    <div class="table-scroll">
-      <table><thead><tr>
-        <th class="sortable" onclick="sortTable('euro','date')">Date<span class="arrow" id="euro-arr-date"></span></th>
-        <th>Op.</th>
-        <th class="sortable" onclick="sortTable('euro','entree')">Entrée<span class="arrow" id="euro-arr-entree"></span></th>
-        <th class="sortable" onclick="sortTable('euro','sortie')">Sortie<span class="arrow" id="euro-arr-sortie"></span></th>
-        <th>Solde cumulé</th>
-        <th class="sortable" onclick="sortTable('euro','personne')">Personne<span class="arrow" id="euro-arr-personne"></span></th>
-        <th>Catégorie</th><th>Remarque</th><th>Actions</th>
-      </tr></thead>
-      <tbody id="euroBody"></tbody></table>
-    </div>
-    <div class="pagination" id="euroPagination"></div>
-  </div>
-
-  <div class="toolbar">
-    <button class="btn btn-green-o" onclick="exportData()">↓ Exporter JSON</button>
-    <button class="btn btn-green-o" onclick="exportCSV('euro')">↓ Exporter CSV Euro</button>
-    <button class="btn btn-amber-o" onclick="document.getElementById('impFile').click()">↑ Importer JSON</button>
-    <input type="file" id="impFile" accept=".json" style="display:none" onchange="importData(event)">
-  </div>
-</div>
-
-<!-- ══════════ CFA TAB ══════════ -->
-<div id="cfaTab" class="tab-content">
-  <div class="filters">
-    <div class="fg"><label>Recherche</label><input type="text" id="cfaSrch" placeholder="Nom, remarque, catégorie..." oninput="filterChanged('cfa')"></div>
-    <div class="fg"><label>Opération</label>
-      <select id="cfaFOp" onchange="filterChanged('cfa')">
-        <option value="">Toutes</option><option value="Entrée">Entrées</option><option value="Sortie">Sorties</option>
-      </select>
-    </div>
-    <div class="fg"><label>Catégorie</label><select id="cfaFCat" onchange="filterChanged('cfa')"><option value="">Toutes</option></select></div>
-    <div class="fg"><label>Date début</label><input type="date" id="cfaFFrom" onchange="filterChanged('cfa')"></div>
-    <div class="fg"><label>Date fin</label><input type="date" id="cfaFTo" onchange="filterChanged('cfa')"></div>
-    <button class="btn-reset" onclick="resetFilters('cfa')">✕ Réinitialiser</button>
-  </div>
-
-  <div class="card">
-    <div class="card-title">➕ Nouvelle transaction CFA</div>
-    <form id="cfaForm">
-      <div class="form-grid">
-        <div class="fgroup"><label>Date</label><input type="date" id="cDate" required></div>
-        <div class="fgroup"><label>Opération</label>
-          <select id="cOp" required><option value="Entrée">Entrée</option><option value="Sortie">Sortie</option></select>
+        <div class="section-head">
+          <h2>Par personne</h2>
+          <select id="suiviFPerson" class="select-inline" onchange="renderSuivi()"></select>
         </div>
-        <div class="fgroup"><label>Entrée (CFA)</label><input type="number" id="cIn" step="1" min="0" placeholder="0" oninput="syncOp('cIn','cOut','cOp')"></div>
-        <div class="fgroup"><label>Sortie (CFA)</label><input type="number" id="cOut" step="1" min="0" placeholder="0" oninput="syncOp('cIn','cOut','cOp')"></div>
-        <div class="fgroup"><label>Personne</label><input type="text" id="cPerson" required placeholder="Nom" list="personsList"></div>
-        <div class="fgroup"><label>Catégorie</label><input type="text" id="cCat" placeholder="Ex: Retrait" list="catsList"></div>
-        <div class="fgroup"><label>Taux</label><input type="number" id="cRate" step="0.01" placeholder="Optionnel"></div>
-      </div>
-      <div class="form-grid" style="max-width:600px;">
-        <div class="fgroup"><label>Statut</label><select id="cStatut"><option value="en_cours">En cours</option><option value="termine">Terminé</option></select></div>
-        <div class="fgroup"><label>Suivi avec (facultatif)</label><select id="cSuivi"></select></div>
-      </div>
-      <div class="fgroup"><label>Remarque</label><textarea id="cNote" placeholder="Détails..."></textarea></div>
-      <button type="submit" class="btn btn-primary" style="margin-top:14px;">+ Ajouter</button>
-    </form>
-  </div>
+        <div class="sum-grid" id="suiviSummary"></div>
 
-  <div class="table-card">
-    <div class="table-head"><h2>Historique CFA</h2><span class="table-count" id="cfaCount">—</span></div>
-    <div id="cfaLoading" class="loading">Chargement...</div>
-    <div class="table-scroll">
-      <table><thead><tr>
-        <th class="sortable" onclick="sortTable('cfa','date')">Date<span class="arrow" id="cfa-arr-date"></span></th>
-        <th>Op.</th>
-        <th class="sortable" onclick="sortTable('cfa','entree')">Entrée<span class="arrow" id="cfa-arr-entree"></span></th>
-        <th class="sortable" onclick="sortTable('cfa','sortie')">Sortie<span class="arrow" id="cfa-arr-sortie"></span></th>
-        <th>Solde cumulé</th>
-        <th class="sortable" onclick="sortTable('cfa','personne')">Personne<span class="arrow" id="cfa-arr-personne"></span></th>
-        <th>Catégorie</th><th>Remarque</th><th>Actions</th>
-      </tr></thead>
-      <tbody id="cfaBody"></tbody></table>
-    </div>
-    <div class="pagination" id="cfaPagination"></div>
-  </div>
-
-  <div class="toolbar">
-    <button class="btn btn-green-o" onclick="exportCSV('cfa')">↓ Exporter CSV CFA</button>
-  </div>
-</div>
-
-<!-- ══════════ ANALYTICS TAB ══════════ -->
-<div id="analyticsTab" class="tab-content">
-  <div class="table-card" style="margin-bottom:20px;">
-    <div class="selector-row">
-      <label>Devise :</label>
-      <select id="aType" onchange="renderAnalytics()"><option value="euro">Euro (€)</option><option value="cfa">CFA (FCFA)</option></select>
-      <label>Mois :</label>
-      <select id="aMonth" onchange="renderAnalytics()"><option value="">Tous</option></select>
-    </div>
-  </div>
-
-  <div class="kpi-grid" id="aKpis" style="grid-template-columns:repeat(auto-fit,minmax(165px,1fr));margin-bottom:20px;"></div>
-
-  <div class="analytics-grid">
-    <div class="chart-card">
-      <div class="chart-title">🍩 Répartition Entrées / Sorties</div>
-      <div class="donut-wrap" id="aDonut"></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-title">🏷️ Répartition par catégorie</div>
-      <div class="bar-chart" id="chartCat"></div>
-    </div>
-  </div>
-
-  <div class="analytics-grid">
-    <div class="chart-card">
-      <div class="chart-title">👥 Top personnes — Entrées</div>
-      <div class="bar-chart" id="chartPersonIn"></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-title">👥 Top personnes — Sorties</div>
-      <div class="bar-chart" id="chartPersonOut"></div>
-    </div>
-  </div>
-
-  <div class="analytics-grid">
-    <div class="chart-card" style="grid-column:1/-1;">
-      <div class="chart-title">📈 Tendance mensuelle — Entrées vs Sorties</div>
-      <div id="trendChart"></div>
-    </div>
-  </div>
-
-  <div class="table-card" style="margin-bottom:20px;">
-    <div class="table-head"><h2>📅 Détail par mois</h2></div>
-    <div class="table-scroll">
-      <table class="mini-table">
-        <thead><tr><th>Mois</th><th>Transactions</th><th>Entrées</th><th>Sorties</th><th>Net</th><th>Évolution net</th></tr></thead>
-        <tbody id="monthBody"></tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="table-card">
-    <div class="table-head"><h2>🏆 Classement personnes</h2></div>
-    <div class="table-scroll">
-      <table class="mini-table">
-        <thead><tr><th>Personne</th><th>Transactions</th><th>Entrées</th><th>Sorties</th><th>Balance nette</th><th>% du total</th></tr></thead>
-        <tbody id="personBody"></tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════ NOTES TAB ══════════ -->
-<div id="suiviTab" class="tab-content">
-  <div class="suivi-hero">
-    <div class="hero-stats">
-      <div class="hero-stat"><div class="hero-num" id="heroOpen">0</div><div class="hero-lb">en cours</div></div>
-      <div class="hero-stat late"><div class="hero-num" id="heroLate">0</div><div class="hero-lb">en retard</div></div>
-      <div class="hero-stat wide"><div class="hero-num sm" id="heroAmt">—</div><div class="hero-lb">à vérifier</div></div>
-    </div>
-    <div class="hero-actions">
-      <button class="btn btn-primary" onclick="goAdd('euro')">＋ Transaction Euro</button>
-      <button class="btn btn-primary" onclick="goAdd('cfa')">＋ Transaction CFA</button>
-    </div>
-  </div>
-
-  <div class="filters">
-    <div class="fg"><label>Contrepartie</label><select id="suiviFPerson" onchange="renderSuivi()"></select></div>
-    <div class="fg" style="flex:3;color:var(--text3);font-size:.76rem;align-self:center;line-height:1.5;">
-      Toute nouvelle transaction est « en cours » par défaut (choisissez « Terminé » à l'ajout si besoin).
-      « Terminé » clôture le suivi ; « Rouvrir » le remet en cours.
-    </div>
-  </div>
-
-  <div class="sum-grid" id="suiviSummary"></div>
-
-  <div class="table-card">
-    <div class="table-head">
-      <h2>⏳ En cours</h2>
-      <span style="display:flex;align-items:center;gap:10px;">
-        <span class="table-count" id="suiviOpenCount">—</span>
-        <button class="btn-sm btn-gold" id="suiviBulkBtn" onclick="closeSelected()" style="display:none;">✓ Terminer la sélection</button>
-      </span>
-    </div>
-    <div class="table-scroll">
-      <table>
-        <thead><tr><th style="width:32px;"><input type="checkbox" id="suiviChkAll" onchange="toggleAllSuivi(this.checked)" title="Tout sélectionner"></th><th>Date</th><th>Devise</th><th>Op.</th><th>Montant</th><th>Personne</th><th>Suivi avec</th><th>À vérifier</th><th>Actions</th></tr></thead>
-        <tbody id="suiviOpenBody"></tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="table-card">
-    <div class="table-head"><h2>✅ Terminé</h2><span class="table-count" id="suiviDoneCount">—</span></div>
-    <div class="table-scroll">
-      <table>
-        <thead><tr><th>Date</th><th>Devise</th><th>Op.</th><th>Montant</th><th>Personne</th><th>Suivi avec</th><th>Clôture</th><th>Actions</th></tr></thead>
-        <tbody id="suiviDoneBody"></tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
-<div id="notesTab" class="tab-content">
-  <div class="notes-layout">
-    <div class="notes-list-panel">
-      <div class="nlp-head">
-        <h3>📓 Notes</h3>
-        <button class="btn-sm btn-gold" onclick="newNote()">+ Nouveau</button>
-      </div>
-      <div class="notes-search"><input type="text" id="noteSearch" placeholder="Rechercher..." oninput="renderNotesList()"></div>
-      <div class="notes-list" id="notesList"><div class="note-empty">Aucune note</div></div>
-    </div>
-    <div class="notes-editor-panel">
-      <div class="ne-empty" id="neEmpty"><div class="ne-empty-icon">📝</div><p>Sélectionnez une note ou créez-en une nouvelle</p></div>
-      <div id="neEditor" style="display:none;flex-direction:column;flex:1;">
-        <div class="ne-toolbar">
-          <input type="text" class="ne-title" id="neTitle" placeholder="Titre..." oninput="autoSaveNote()">
-          <button class="act-btn act-del" onclick="deleteNote()">Supprimer</button>
+        <div class="panel">
+          <div class="panel-head">
+            <h2>En cours <span class="count" id="suiviOpenCount">—</span></h2>
+            <button class="btn btn-sm btn-primary" id="suiviBulkBtn" onclick="closeSelected()" style="display:none;">Terminer la sélection</button>
+          </div>
+          <div class="table-scroll">
+            <table class="mt suivi-table">
+              <thead><tr><th class="c-chk"><input type="checkbox" id="suiviChkAll" onchange="toggleAllSuivi(this.checked)" title="Tout sélectionner"></th><th>Date</th><th>Devise</th><th>Opération</th><th>Montant</th><th>Personne</th><th>Suivi avec</th><th>À vérifier</th><th></th></tr></thead>
+              <tbody id="suiviOpenBody"></tbody>
+            </table>
+          </div>
         </div>
-        <textarea class="ne-body" id="neBody" placeholder="Écrivez ici..." oninput="autoSaveNote()"></textarea>
-        <div class="ne-status"><span id="neDate">—</span><span id="neStatus">—</span></div>
-      </div>
-    </div>
+
+        <div class="panel">
+          <div class="panel-head"><h2>Terminées <span class="count" id="suiviDoneCount">—</span></h2></div>
+          <div class="table-scroll">
+            <table class="mt suivi-table done">
+              <thead><tr><th>Date</th><th>Devise</th><th>Opération</th><th>Montant</th><th>Personne</th><th>Suivi avec</th><th>Clôture</th><th></th></tr></thead>
+              <tbody id="suiviDoneBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <p class="hint">Toute nouvelle transaction est « en cours » par défaut. « Terminer » clôture le suivi, « Rouvrir » le remet en cours.</p>
+      </section>
+
+      <!-- ═════════ TABLEAU DE BORD ═════════ -->
+      <section id="dashTab" class="tab-content">
+        <div class="kpi-grid" id="dashKpis">
+          <div class="kpi kpi-suivi kpi-link" onclick="switchTab('suivi')">
+            <div class="kpi-top"><span class="kpi-label">Suivi en cours</span><span class="kpi-ic"><svg class="ic"><use href="#i-suivi"/></svg></span></div>
+            <div class="kpi-value" id="kpiSuivi">—</div>
+            <div class="kpi-sub" id="kpiSuiviSub">—</div>
+          </div>
+          <div class="kpi kpi-euro">
+            <div class="kpi-top"><span class="kpi-label">Solde Euro</span><span class="kpi-ic"><svg class="ic"><use href="#i-euro"/></svg></span></div>
+            <div class="kpi-value" id="kpiEuro">—</div>
+            <div class="kpi-sub" id="kpiEuroSub">—</div>
+          </div>
+          <div class="kpi kpi-cfa">
+            <div class="kpi-top"><span class="kpi-label">Solde CFA</span><span class="kpi-ic"><svg class="ic"><use href="#i-cfa"/></svg></span></div>
+            <div class="kpi-value" id="kpiCFA">—</div>
+            <div class="kpi-sub" id="kpiCFASub">—</div>
+          </div>
+          <div class="kpi kpi-gold kpi-total">
+            <div class="kpi-top"><span class="kpi-label">Patrimoine total (équiv. €)</span><span class="kpi-ic"><svg class="ic"><use href="#i-wallet"/></svg></span></div>
+            <div class="kpi-value" id="kpiTotal">—</div>
+            <div class="kpi-sub" id="kpiTotalSub">au taux choisi</div>
+            <div class="rate-ctrl">
+              <span>1 € =</span>
+              <input type="number" id="totalRate" step="0.001" placeholder="655,957" oninput="applyTotalRate()">
+              <span>CFA</span>
+              <button type="button" class="btn btn-sm" onclick="resetTotalRate()">Officiel</button>
+            </div>
+          </div>
+          <div class="kpi kpi-green">
+            <div class="kpi-top"><span class="kpi-label">Entrées ce mois</span><span class="kpi-ic"><svg class="ic"><use href="#i-up"/></svg></span></div>
+            <div class="kpi-value" id="kpiMIn">—</div>
+            <div class="kpi-sub" id="kpiMInSub">—</div>
+          </div>
+          <div class="kpi kpi-red">
+            <div class="kpi-top"><span class="kpi-label">Sorties ce mois</span><span class="kpi-ic"><svg class="ic"><use href="#i-down"/></svg></span></div>
+            <div class="kpi-value" id="kpiMOut">—</div>
+            <div class="kpi-sub" id="kpiMOutSub">—</div>
+          </div>
+          <div class="kpi kpi-neutral">
+            <div class="kpi-top"><span class="kpi-label">Transactions</span><span class="kpi-ic"><svg class="ic"><use href="#i-swap"/></svg></span></div>
+            <div class="kpi-value" id="kpiTx">—</div>
+            <div class="kpi-sub" id="kpiTxSub">—</div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="panel pad">
+            <div class="panel-title">Convertisseur Euro ⇄ CFA</div>
+            <div class="converter">
+              <div class="fgroup"><label>Euros (€)</label><input type="number" id="cvEur" step="0.01" placeholder="0,00" oninput="convert('eur')" class="num"></div>
+              <button class="cv-swap" onclick="swapConvert()" title="Inverser"><svg class="ic"><use href="#i-swap"/></svg></button>
+              <div class="fgroup"><label>Francs CFA</label><input type="number" id="cvCfa" step="1" placeholder="0" oninput="convert('cfa')" class="num"></div>
+            </div>
+            <div class="cv-rate-row">
+              <div class="fgroup"><label>Taux (1 € = … CFA)</label><input type="number" id="cvRate" step="0.001" value="655.957" oninput="convert('eur')" class="num"></div>
+              <button class="cv-preset" onclick="setRate(655.957)">655,957</button>
+              <button class="cv-preset" onclick="setRate(670)">670</button>
+              <button class="cv-preset" onclick="setRate(675)">675</button>
+              <button class="cv-preset" onclick="setRate(700)">700</button>
+            </div>
+            <div class="cv-result" id="cvResult">Saisissez un montant pour convertir.</div>
+          </div>
+          <div class="panel pad">
+            <div class="panel-title">Répartition du patrimoine (équiv. €)</div>
+            <div class="donut-wrap" id="dashDonut"></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h2>Argent détenu par des personnes <span class="count" id="holdingsCount">—</span></h2></div>
+          <div class="panel-body">
+            <form id="holdingForm" onsubmit="return addHolding(event)">
+              <div class="form-grid">
+                <div class="fgroup"><label>Personne</label><input type="text" id="hPerson" required placeholder="Nom" list="personsList"></div>
+                <div class="fgroup"><label>Devise</label><select id="hDevise"><option value="EUR">Euro (€)</option><option value="CFA">CFA (FCFA)</option></select></div>
+                <div class="fgroup"><label>Montant</label><input type="number" id="hMontant" step="0.01" min="0" required placeholder="0,00"></div>
+                <div class="fgroup"><label>Remarque</label><input type="text" id="hNote" placeholder="Optionnel"></div>
+                <div class="fgroup fgroup-btn"><label>&nbsp;</label><button type="submit" class="btn btn-primary" id="holdingSubmitBtn">+ Ajouter</button></div>
+              </div>
+            </form>
+          </div>
+          <div class="table-scroll">
+            <table class="mt hold-table">
+              <thead><tr><th>Personne</th><th>Devise</th><th>Montant</th><th>Équiv. €</th><th>Remarque</th><th></th></tr></thead>
+              <tbody id="holdingsBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h2>Dernières transactions <span class="count" id="recentCount">—</span></h2></div>
+          <div class="table-scroll">
+            <table class="mt recent-table">
+              <thead><tr><th>Date</th><th>Devise</th><th>Opération</th><th>Montant</th><th>Personne</th><th>Catégorie</th><th>Remarque</th></tr></thead>
+              <tbody id="recentBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="panel pad">
+            <div class="panel-title">Balance nette par personne — Euro</div>
+            <div class="bar-chart" id="dashBalEuro"></div>
+          </div>
+          <div class="panel pad">
+            <div class="panel-title">Balance nette par personne — CFA</div>
+            <div class="bar-chart" id="dashBalCfa"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═════════ EURO ═════════ -->
+      <section id="euroTab" class="tab-content">
+        <div class="filters">
+          <div class="fg fg-wide"><label>Recherche</label><input type="text" id="euroSrch" placeholder="Nom, remarque, catégorie…" oninput="filterChanged('euro')"></div>
+          <div class="fg"><label>Opération</label>
+            <select id="euroFOp" onchange="filterChanged('euro')"><option value="">Toutes</option><option value="Entrée">Entrées</option><option value="Sortie">Sorties</option></select>
+          </div>
+          <div class="fg"><label>Catégorie</label><select id="euroFCat" onchange="filterChanged('euro')"><option value="">Toutes</option></select></div>
+          <div class="fg"><label>Du</label><input type="date" id="euroFFrom" onchange="filterChanged('euro')"></div>
+          <div class="fg"><label>Au</label><input type="date" id="euroFTo" onchange="filterChanged('euro')"></div>
+          <button class="btn btn-ghost" onclick="resetFilters('euro')">Réinitialiser</button>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Historique Euro <span class="count" id="euroCount">—</span></h2>
+            <div class="panel-actions">
+              <button class="btn btn-sm" onclick="exportCSV('euro')"><svg class="ic"><use href="#i-download"/></svg>CSV</button>
+              <button class="btn btn-sm" onclick="exportData()"><svg class="ic"><use href="#i-download"/></svg>JSON</button>
+              <button class="btn btn-sm" onclick="document.getElementById('impFile').click()"><svg class="ic"><use href="#i-upload"/></svg>Importer</button>
+              <input type="file" id="impFile" accept=".json" style="display:none" onchange="importData(event)">
+            </div>
+          </div>
+          <div id="euroLoading" class="loading">Chargement…</div>
+          <div class="table-scroll">
+            <table class="mt tx-table"><thead><tr>
+              <th class="sortable" onclick="sortTable('euro','date')">Date<span class="arrow" id="euro-arr-date"></span></th>
+              <th>Opération</th>
+              <th class="sortable" onclick="sortTable('euro','entree')">Entrée<span class="arrow" id="euro-arr-entree"></span></th>
+              <th class="sortable" onclick="sortTable('euro','sortie')">Sortie<span class="arrow" id="euro-arr-sortie"></span></th>
+              <th>Solde cumulé</th>
+              <th class="sortable" onclick="sortTable('euro','personne')">Personne<span class="arrow" id="euro-arr-personne"></span></th>
+              <th>Catégorie</th><th>Remarque</th><th></th>
+            </tr></thead>
+            <tbody id="euroBody"></tbody></table>
+          </div>
+          <div class="pagination" id="euroPagination"></div>
+        </div>
+      </section>
+
+      <!-- ═════════ CFA ═════════ -->
+      <section id="cfaTab" class="tab-content">
+        <div class="filters">
+          <div class="fg fg-wide"><label>Recherche</label><input type="text" id="cfaSrch" placeholder="Nom, remarque, catégorie…" oninput="filterChanged('cfa')"></div>
+          <div class="fg"><label>Opération</label>
+            <select id="cfaFOp" onchange="filterChanged('cfa')"><option value="">Toutes</option><option value="Entrée">Entrées</option><option value="Sortie">Sorties</option></select>
+          </div>
+          <div class="fg"><label>Catégorie</label><select id="cfaFCat" onchange="filterChanged('cfa')"><option value="">Toutes</option></select></div>
+          <div class="fg"><label>Du</label><input type="date" id="cfaFFrom" onchange="filterChanged('cfa')"></div>
+          <div class="fg"><label>Au</label><input type="date" id="cfaFTo" onchange="filterChanged('cfa')"></div>
+          <button class="btn btn-ghost" onclick="resetFilters('cfa')">Réinitialiser</button>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Historique CFA <span class="count" id="cfaCount">—</span></h2>
+            <div class="panel-actions">
+              <button class="btn btn-sm" onclick="exportCSV('cfa')"><svg class="ic"><use href="#i-download"/></svg>CSV</button>
+            </div>
+          </div>
+          <div id="cfaLoading" class="loading">Chargement…</div>
+          <div class="table-scroll">
+            <table class="mt tx-table"><thead><tr>
+              <th class="sortable" onclick="sortTable('cfa','date')">Date<span class="arrow" id="cfa-arr-date"></span></th>
+              <th>Opération</th>
+              <th class="sortable" onclick="sortTable('cfa','entree')">Entrée<span class="arrow" id="cfa-arr-entree"></span></th>
+              <th class="sortable" onclick="sortTable('cfa','sortie')">Sortie<span class="arrow" id="cfa-arr-sortie"></span></th>
+              <th>Solde cumulé</th>
+              <th class="sortable" onclick="sortTable('cfa','personne')">Personne<span class="arrow" id="cfa-arr-personne"></span></th>
+              <th>Catégorie</th><th>Remarque</th><th></th>
+            </tr></thead>
+            <tbody id="cfaBody"></tbody></table>
+          </div>
+          <div class="pagination" id="cfaPagination"></div>
+        </div>
+      </section>
+
+      <!-- ═════════ ANALYSES ═════════ -->
+      <section id="analyticsTab" class="tab-content">
+        <div class="filters">
+          <div class="fg"><label>Devise</label><select id="aType" onchange="renderAnalytics()"><option value="euro">Euro (€)</option><option value="cfa">CFA (FCFA)</option></select></div>
+          <div class="fg"><label>Mois</label><select id="aMonth" onchange="renderAnalytics()"><option value="">Tous</option></select></div>
+        </div>
+
+        <div class="kpi-grid" id="aKpis"></div>
+
+        <div class="grid-2">
+          <div class="panel pad"><div class="panel-title">Entrées / Sorties</div><div class="donut-wrap" id="aDonut"></div></div>
+          <div class="panel pad"><div class="panel-title">Répartition par catégorie</div><div class="bar-chart" id="chartCat"></div></div>
+        </div>
+        <div class="grid-2">
+          <div class="panel pad"><div class="panel-title">Principales entrées par personne</div><div class="bar-chart" id="chartPersonIn"></div></div>
+          <div class="panel pad"><div class="panel-title">Principales sorties par personne</div><div class="bar-chart" id="chartPersonOut"></div></div>
+        </div>
+        <div class="panel pad">
+          <div class="panel-title">Tendance mensuelle — Entrées et Sorties</div>
+          <div id="trendChart"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h2>Détail par mois</h2></div>
+          <div class="table-scroll">
+            <table class="mini-table">
+              <thead><tr><th>Mois</th><th>Transactions</th><th>Entrées</th><th>Sorties</th><th>Net</th><th>Évolution</th></tr></thead>
+              <tbody id="monthBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h2>Classement des personnes</h2></div>
+          <div class="table-scroll">
+            <table class="mini-table">
+              <thead><tr><th>Personne</th><th>Transactions</th><th>Entrées</th><th>Sorties</th><th>Balance nette</th><th>Part</th></tr></thead>
+              <tbody id="personBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═════════ NOTES ═════════ -->
+      <section id="notesTab" class="tab-content">
+        <div class="notes-layout">
+          <div class="notes-list-panel">
+            <div class="nlp-head">
+              <h3>Notes</h3>
+              <button class="btn btn-sm btn-primary" onclick="newNote()"><svg class="ic"><use href="#i-plus"/></svg>Nouvelle</button>
+            </div>
+            <div class="notes-search"><input type="text" id="noteSearch" placeholder="Rechercher…" oninput="renderNotesList()"></div>
+            <div class="notes-list" id="notesList"><div class="note-empty">Aucune note</div></div>
+          </div>
+          <div class="notes-editor-panel">
+            <div class="ne-empty" id="neEmpty"><svg class="ic"><use href="#i-notes"/></svg><p>Sélectionnez une note ou créez-en une nouvelle</p></div>
+            <div id="neEditor" style="display:none;flex-direction:column;flex:1;">
+              <div class="ne-toolbar">
+                <input type="text" class="ne-title" id="neTitle" placeholder="Titre" oninput="autoSaveNote()">
+                <button class="btn btn-sm btn-danger" onclick="deleteNote()"><svg class="ic"><use href="#i-trash"/></svg>Supprimer</button>
+              </div>
+              <textarea class="ne-body" id="neBody" placeholder="Écrivez ici…" oninput="autoSaveNote()"></textarea>
+              <div class="ne-status"><span id="neDate">—</span><span id="neStatus">—</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
   </div>
 </div>
-
-</div><!-- /wrap -->
 
 <!-- datalists partagées -->
 <datalist id="personsList"></datalist>
@@ -480,10 +452,125 @@
   <option value="Frais"></option><option value="Famille"></option><option value="Autre"></option>
 </datalist>
 
-<!-- EDIT MODAL -->
+<!-- ═════════ NAVIGATION TÉLÉPHONE ═════════ -->
+<nav class="bottom-nav" id="bottomNav">
+  <button data-nav="dash" onclick="switchTab('dash')"><span class="bn-ic"><svg class="ic"><use href="#i-home"/></svg></span><span>Accueil</span></button>
+  <button data-nav="euro" onclick="switchTab('euro')"><span class="bn-ic"><svg class="ic"><use href="#i-euro"/></svg></span><span>Euro</span></button>
+  <button data-nav="suivi" class="bn-main active" onclick="switchTab('suivi')"><span class="bn-ic"><svg class="ic"><use href="#i-suivi"/></svg></span><span>Suivi</span><span class="tab-badge" id="suiviBadge2" style="display:none;">0</span></button>
+  <button data-nav="cfa" onclick="switchTab('cfa')"><span class="bn-ic"><svg class="ic"><use href="#i-cfa"/></svg></span><span>CFA</span></button>
+  <button data-nav="more" onclick="openMore()"><span class="bn-ic"><svg class="ic"><use href="#i-grid"/></svg></span><span>Plus</span></button>
+</nav>
+<button class="fab" id="fab" onclick="newTx()" aria-label="Nouvelle transaction"><svg class="ic"><use href="#i-plus"/></svg></button>
+
+<div class="sheet-overlay" id="moreSheet" onclick="if(event.target===this)closeMore()">
+  <div class="sheet">
+    <div class="sheet-grip"></div>
+    <div class="sheet-group-label">Outils</div>
+    <div class="sheet-list">
+      <button class="sheet-item" onclick="moreGo(()=>switchTab('analytics'))"><span class="si-ic"><svg class="ic"><use href="#i-chart"/></svg></span>Analyses<svg class="ic chev"><use href="#i-chevron"/></svg></button>
+      <button class="sheet-item" onclick="moreGo(()=>switchTab('notes'))"><span class="si-ic"><svg class="ic"><use href="#i-notes"/></svg></span>Notes<svg class="ic chev"><use href="#i-chevron"/></svg></button>
+      <button class="sheet-item" onclick="moreGo(toggleSearch)"><span class="si-ic"><svg class="ic"><use href="#i-search"/></svg></span>Recherche<svg class="ic chev"><use href="#i-chevron"/></svg></button>
+    </div>
+    <div class="sheet-group-label">Données</div>
+    <div class="sheet-list">
+      <button class="sheet-item" onclick="moreGo(openHistory)"><span class="si-ic"><svg class="ic"><use href="#i-history"/></svg></span>Sauvegardes<svg class="ic chev"><use href="#i-chevron"/></svg></button>
+      <button class="sheet-item" onclick="moreGo(openTrash)"><span class="si-ic"><svg class="ic"><use href="#i-trash"/></svg></span>Corbeille<svg class="ic chev"><use href="#i-chevron"/></svg></button>
+      <button class="sheet-item" onclick="moreGo(openLog)"><span class="si-ic"><svg class="ic"><use href="#i-list"/></svg></span>Journal<svg class="ic chev"><use href="#i-chevron"/></svg></button>
+    </div>
+    <div class="sheet-group-label">Préférences</div>
+    <div class="sheet-list">
+      <button class="sheet-item" onclick="toggleTheme()"><span class="si-ic"><svg class="ic"><use href="#i-moon"/></svg></span>Apparence<span class="si-value" id="themeState">Clair</span></button>
+      <div class="sheet-item static"><span class="si-ic"><svg class="ic"><use href="#i-user"/></svg></span>Utilisé par<select id="whoAmI2" class="si-select" onchange="setWho(this.value)"></select></div>
+    </div>
+    <div class="sheet-info"><span id="moreConn"></span><span id="moreBackup"></span></div>
+  </div>
+</div>
+
+<!-- ═════════ FENÊTRES ═════════ -->
+
+<!-- Choix de la devise pour une nouvelle transaction -->
+<div class="modal-overlay" id="addChoiceModal">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <div><h2>Nouvelle transaction</h2><div class="modal-sub">Choisissez la devise</div></div>
+      <button class="close-btn" onclick="closeModal('addChoiceModal')"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="choice-grid">
+      <button class="choice" onclick="openAdd('euro')"><span class="choice-ic euro"><svg class="ic"><use href="#i-euro"/></svg></span><b>Euro</b><small>Montant en €</small></button>
+      <button class="choice" onclick="openAdd('cfa')"><span class="choice-ic cfa"><svg class="ic"><use href="#i-cfa"/></svg></span><b>CFA</b><small>Montant en FCFA</small></button>
+    </div>
+  </div>
+</div>
+
+<!-- Nouvelle transaction Euro -->
+<div class="modal-overlay" id="addEuroModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div><h2>Nouvelle transaction</h2><div class="modal-sub"><span class="badge badge-euro">EUR</span> Euro</div></div>
+      <button class="close-btn" onclick="closeAdd('euro')"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+    <form id="euroForm">
+      <div class="form-grid">
+        <div class="fgroup"><label>Date</label><input type="date" id="eDate" required></div>
+        <div class="fgroup"><label>Opération</label><select id="eOp" required><option value="Entrée">Entrée</option><option value="Sortie">Sortie</option></select></div>
+        <div class="fgroup"><label>Entrée (€)</label><input type="number" id="eIn" step="0.01" min="0" placeholder="0,00" oninput="syncOp('eIn','eOut','eOp')"></div>
+        <div class="fgroup"><label>Sortie (€)</label><input type="number" id="eOut" step="0.01" min="0" placeholder="0,00" oninput="syncOp('eIn','eOut','eOp')"></div>
+        <div class="fgroup"><label>Personne</label><input type="text" id="ePerson" required placeholder="Nom" list="personsList"></div>
+        <div class="fgroup"><label>Catégorie</label><input type="text" id="eCat" placeholder="Ex. Transfert" list="catsList"></div>
+        <div class="fgroup"><label>Taux</label><input type="number" id="eRate" step="0.01" placeholder="Optionnel"></div>
+      </div>
+      <div class="form-section-label">Suivi</div>
+      <div class="form-grid">
+        <div class="fgroup"><label>Statut</label><select id="eStatut"><option value="en_cours">En cours</option><option value="termine">Terminé</option></select></div>
+        <div class="fgroup"><label>Suivi avec (facultatif)</label><select id="eSuivi"></select></div>
+      </div>
+      <div class="fgroup"><label>Remarque</label><textarea id="eNote" placeholder="Détails…"></textarea></div>
+      <div class="modal-actions">
+        <button type="button" class="btn" onclick="closeAdd('euro')">Annuler</button>
+        <button type="submit" class="btn btn-primary">Ajouter la transaction</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Nouvelle transaction CFA -->
+<div class="modal-overlay" id="addCfaModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div><h2>Nouvelle transaction</h2><div class="modal-sub"><span class="badge badge-cfa">CFA</span> Franc CFA</div></div>
+      <button class="close-btn" onclick="closeAdd('cfa')"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+    <form id="cfaForm">
+      <div class="form-grid">
+        <div class="fgroup"><label>Date</label><input type="date" id="cDate" required></div>
+        <div class="fgroup"><label>Opération</label><select id="cOp" required><option value="Entrée">Entrée</option><option value="Sortie">Sortie</option></select></div>
+        <div class="fgroup"><label>Entrée (CFA)</label><input type="number" id="cIn" step="1" min="0" placeholder="0" oninput="syncOp('cIn','cOut','cOp')"></div>
+        <div class="fgroup"><label>Sortie (CFA)</label><input type="number" id="cOut" step="1" min="0" placeholder="0" oninput="syncOp('cIn','cOut','cOp')"></div>
+        <div class="fgroup"><label>Personne</label><input type="text" id="cPerson" required placeholder="Nom" list="personsList"></div>
+        <div class="fgroup"><label>Catégorie</label><input type="text" id="cCat" placeholder="Ex. Retrait" list="catsList"></div>
+        <div class="fgroup"><label>Taux</label><input type="number" id="cRate" step="0.01" placeholder="Optionnel"></div>
+      </div>
+      <div class="form-section-label">Suivi</div>
+      <div class="form-grid">
+        <div class="fgroup"><label>Statut</label><select id="cStatut"><option value="en_cours">En cours</option><option value="termine">Terminé</option></select></div>
+        <div class="fgroup"><label>Suivi avec (facultatif)</label><select id="cSuivi"></select></div>
+      </div>
+      <div class="fgroup"><label>Remarque</label><textarea id="cNote" placeholder="Détails…"></textarea></div>
+      <div class="modal-actions">
+        <button type="button" class="btn" onclick="closeAdd('cfa')">Annuler</button>
+        <button type="submit" class="btn btn-primary">Ajouter la transaction</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modifier une transaction -->
 <div class="modal-overlay" id="editModal">
   <div class="modal">
-    <div class="modal-header"><h2>✏️ Modifier la transaction</h2><button class="close-btn" onclick="closeEdit()">×</button></div>
+    <div class="modal-header">
+      <div><h2>Modifier la transaction</h2></div>
+      <button class="close-btn" onclick="closeEdit()"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
     <form id="editForm">
       <input type="hidden" id="editType"><input type="hidden" id="editId">
       <div class="form-grid">
@@ -495,131 +582,94 @@
         <div class="fgroup"><label>Catégorie</label><input type="text" id="edCat" list="catsList"></div>
         <div class="fgroup"><label>Taux</label><input type="number" id="edRate" step="0.01" placeholder="Optionnel"></div>
       </div>
+      <div class="form-section-label">Suivi</div>
       <div class="form-grid">
-        <div class="fgroup"><label>Statut</label><select id="edStatut"><option value="">— Hors suivi —</option><option value="en_cours">En cours</option><option value="termine">Terminé</option></select></div>
+        <div class="fgroup"><label>Statut</label><select id="edStatut"><option value="">Hors suivi</option><option value="en_cours">En cours</option><option value="termine">Terminé</option></select></div>
         <div class="fgroup"><label>Suivi avec (facultatif)</label><select id="edSuivi"></select></div>
       </div>
       <div class="fgroup"><label>Remarque</label><textarea id="edNote"></textarea></div>
-      <div style="display:flex;gap:10px;margin-top:18px;">
-        <button type="submit" class="btn btn-primary" style="flex:1;">Enregistrer</button>
-        <button type="button" class="btn" onclick="closeEdit()" style="flex:1;">Annuler</button>
+      <div class="modal-actions">
+        <button type="button" class="btn" onclick="closeEdit()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Enregistrer</button>
       </div>
     </form>
   </div>
 </div>
 
-<!-- HISTORY MODAL -->
+<!-- Sauvegardes -->
 <div class="modal-overlay" id="histModal">
   <div class="modal">
-    <div class="modal-header"><h2>📋 Historique des sauvegardes</h2><button class="close-btn" onclick="closeHistory()">×</button></div>
-    <p style="font-size:.76rem;color:var(--text2);margin-bottom:14px;line-height:1.6;">
-      Une sauvegarde est créée <strong>automatiquement après chaque modification</strong> (ajout, modification, suppression, suivi) et lors d'une sauvegarde manuelle.<br>
-      Conservées : les <strong>10 dernières</strong> + la plus récente de chacun des <strong>14 derniers jours</strong>.
-    </p>
+    <div class="modal-header">
+      <div><h2>Sauvegardes</h2><div class="modal-sub">Copie de sécurité dans la base miroir</div></div>
+      <button class="close-btn" onclick="closeHistory()"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="modal-banner">
+      <p>Une sauvegarde est créée automatiquement après chaque modification. Sont conservées les 10 dernières et la plus récente de chacun des 14 derniers jours.</p>
+      <button class="btn btn-sm btn-primary" onclick="syncMirror(true).then(openHistory)"><svg class="ic"><use href="#i-cloud"/></svg>Sauvegarder maintenant</button>
+    </div>
     <div id="histList"></div>
   </div>
 </div>
 
-<!-- RESTORE MODAL -->
+<!-- Restauration (conservée pour compatibilité) -->
 <div class="modal-overlay" id="restModal">
   <div class="modal">
-    <div class="modal-header"><h2>↩️ Restaurer depuis le miroir</h2><button class="close-btn" onclick="closeRestore()">×</button></div>
-    <p style="font-size:.76rem;color:var(--text2);margin-bottom:14px;line-height:1.6;">
-      Choisissez une sauvegarde. Les données actuelles seront <strong>remplacées</strong>.
-    </p>
+    <div class="modal-header">
+      <div><h2>Restaurer une sauvegarde</h2><div class="modal-sub">Les données actuelles seront remplacées</div></div>
+      <button class="close-btn" onclick="closeRestore()"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
     <div id="restList"></div>
   </div>
 </div>
 
-<!-- PERSON PROFILE MODAL -->
+<!-- Fiche personne -->
 <div class="modal-overlay" id="personModal">
-  <div class="modal" style="max-width:520px;">
+  <div class="modal">
     <div class="modal-header">
-      <div>
-        <h2 id="personName">—</h2>
-        <div style="font-size:.7rem;color:var(--text3);margin-top:4px;" id="personMeta">—</div>
-      </div>
-      <button class="close-btn" onclick="closePersonProfile()">×</button>
+      <div><h2 id="personName">—</h2><div class="modal-sub" id="personMeta">—</div></div>
+      <button class="close-btn" onclick="closePersonProfile()"><svg class="ic"><use href="#i-x"/></svg></button>
     </div>
-    <div class="kpi-grid" id="personStats" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;"></div>
-    <div style="font-size:.72rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px;">Historique</div>
-    <div id="personHistory" style="max-height:320px;overflow-y:auto;"></div>
+    <div class="kpi-grid kpi-grid-3" id="personStats"></div>
+    <div class="form-section-label">Historique</div>
+    <div id="personHistory" class="scroll-list"></div>
   </div>
 </div>
 
-<!-- PIN LOCK MODAL -->
+<!-- Code requis pour écrire -->
 <div class="modal-overlay" id="pinModal">
-  <div class="modal" style="max-width:360px;text-align:center;">
-    <div style="font-size:2.2rem;margin-bottom:6px;">🔒</div>
-    <h2 style="font-family:var(--font-display);font-size:1.05rem;font-weight:700;margin-bottom:6px;">Code requis</h2>
-    <p style="font-size:.78rem;color:var(--text2);margin-bottom:18px;line-height:1.55;">
-      Entrez le code à 4 chiffres pour écrire, modifier ou supprimer.<br>
-      Il sera mémorisé sur cet appareil.
-    </p>
+  <div class="modal modal-sm center">
+    <div class="pin-ic"><svg class="ic"><use href="#i-lock"/></svg></div>
+    <h2>Code requis</h2>
+    <p class="modal-text">Entrez le code à 4 chiffres pour ajouter, modifier ou supprimer. Il sera mémorisé sur cet appareil.</p>
     <form id="pinForm" onsubmit="return submitPin(event)">
-      <input type="password" id="pinInput" inputmode="numeric" maxlength="4" pattern="[0-9]{4}"
-        placeholder="••••" autocomplete="off"
-        style="width:100%;text-align:center;font-size:1.6rem;letter-spacing:.5em;padding:12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--input-bg);color:var(--text);font-family:var(--font-mono);">
-      <div id="pinError" style="color:var(--red);font-size:.72rem;margin-top:8px;min-height:16px;"></div>
-      <div style="display:flex;gap:10px;margin-top:14px;">
-        <button type="submit" class="btn btn-primary" style="flex:1;">Déverrouiller</button>
-        <button type="button" class="btn" style="flex:1;" onclick="closePinModal()">Annuler</button>
+      <input type="password" id="pinInput" class="code-input" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="••••" autocomplete="off">
+      <div id="pinError" class="app-lock-error"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn" onclick="closePinModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Déverrouiller</button>
       </div>
     </form>
   </div>
 </div>
 
-<!-- NAVIGATION MOBILE (barre du bas, menu Plus, bouton +) -->
-<nav class="bottom-nav" id="bottomNav">
-  <button data-nav="dash" class="active" onclick="switchTab('dash')"><span class="bn-ic">🏠</span><span>Accueil</span></button>
-  <button data-nav="euro" onclick="switchTab('euro')"><span class="bn-ic">💶</span><span>Euro</span></button>
-  <button data-nav="suivi" class="bn-main" onclick="switchTab('suivi')"><span class="bn-ic">🔗</span><span>Suivi</span><span class="tab-badge" id="suiviBadge2" style="display:none;">0</span></button>
-  <button data-nav="cfa" onclick="switchTab('cfa')"><span class="bn-ic">💵</span><span>CFA</span></button>
-  <button data-nav="more" onclick="openMore()"><span class="bn-ic">☰</span><span>Plus</span></button>
-</nav>
-<button class="fab" id="fab" onclick="quickAdd()" aria-label="Nouvelle transaction">＋</button>
-
-<div class="sheet-overlay" id="moreSheet" onclick="if(event.target===this)closeMore()">
-  <div class="sheet">
-    <div class="sheet-grip"></div>
-    <div class="sheet-title">Menu</div>
-    <div class="sheet-grid">
-      <button class="sheet-item" onclick="moreGo(()=>switchTab('analytics'))"><span>📊</span>Analyses</button>
-      <button class="sheet-item" onclick="moreGo(()=>switchTab('notes'))"><span>📓</span>Notes</button>
-      <button class="sheet-item" onclick="moreGo(openTrash)"><span>🗑</span>Corbeille</button>
-      <button class="sheet-item" onclick="moreGo(openLog)"><span>📜</span>Journal</button>
-      <button class="sheet-item" onclick="moreGo(()=>syncMirror(true))"><span>☁️</span>Sauvegarder</button>
-      <button class="sheet-item" onclick="moreGo(openHistory)"><span>📋</span>Historique</button>
-      <button class="sheet-item" onclick="moreGo(openRestore)"><span>↩️</span>Restaurer</button>
-      <button class="sheet-item" onclick="moreGo(toggleTheme)"><span>🌗</span>Thème</button>
-      <button class="sheet-item" onclick="moreGo(()=>document.getElementById('globalSearch').focus())"><span>🔎</span>Recherche</button>
-    </div>
-    <div class="sheet-row">
-      <label for="whoAmI2">👤 Cet appareil est utilisé par</label>
-      <select id="whoAmI2" onchange="setWho(this.value)"></select>
-    </div>
-    <div class="sheet-info" id="moreBackup"></div>
-  </div>
-</div>
-
-<!-- CORBEILLE MODAL -->
+<!-- Corbeille -->
 <div class="modal-overlay" id="trashModal">
-  <div class="modal" style="max-width:640px;">
-    <div class="modal-header"><h2>🗑 Corbeille</h2><button class="close-btn" onclick="closeTrash()">×</button></div>
-    <p style="font-size:.76rem;color:var(--text2);margin-bottom:14px;line-height:1.6;">
-      Les transactions supprimées restent <strong>30 jours</strong> ici avant d'être effacées définitivement.
-    </p>
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div><h2>Corbeille</h2><div class="modal-sub">Les transactions supprimées restent 30 jours avant d'être effacées</div></div>
+      <button class="close-btn" onclick="closeTrash()"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
     <div id="trashList"></div>
   </div>
 </div>
 
-<!-- JOURNAL MODAL -->
+<!-- Journal -->
 <div class="modal-overlay" id="logModal">
-  <div class="modal" style="max-width:680px;">
-    <div class="modal-header"><h2>📜 Journal des modifications</h2><button class="close-btn" onclick="closeLog()">×</button></div>
-    <p style="font-size:.76rem;color:var(--text2);margin-bottom:14px;line-height:1.6;">
-      Les 200 dernières actions. Le nom vient du sélecteur en haut de page (propre à chaque appareil).
-    </p>
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div><h2>Journal des modifications</h2><div class="modal-sub">Les 200 dernières actions, avec le nom choisi sur chaque appareil</div></div>
+      <button class="close-btn" onclick="closeLog()"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
     <div id="logList"></div>
   </div>
 </div>
