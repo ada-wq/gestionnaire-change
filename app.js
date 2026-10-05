@@ -281,7 +281,7 @@ function applyTheme(t) {
   if (st) st.textContent = t === 'dark' ? 'Sombre' : 'Clair';
   // couleur de la barre d'état du téléphone
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', t === 'dark' ? '#0b0e16' : '#f4f5f8');
+  if (meta) meta.setAttribute('content', t === 'dark' ? '#1e1b4b' : '#312e81');
 }
 function toggleTheme() {
   const t = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
