@@ -708,3 +708,60 @@ body { overscroll-behavior-y: none; }
   /* messages au-dessus de la barre */
   .toast { left:12px; right:12px; max-width:none; bottom:calc(88px + env(safe-area-inset-bottom)); }
 }
+
+/* ═══════════════════════════════════════════
+   SUIVI MIS EN AVANT : accueil, bandeau, carte KPI, menu latéral
+═══════════════════════════════════════════ */
+.kpi-suivi { background:linear-gradient(135deg,#be185d,#ec4899 60%,#f9a8d4); box-shadow:0 8px 22px rgba(190,24,93,.4); }
+
+.suivi-hero {
+  display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+  background:var(--surface); border:1px solid var(--border2); border-left:4px solid #ec4899;
+  border-radius:var(--r-lg); padding:18px 20px; margin-bottom:18px; box-shadow:var(--shadow-sm);
+}
+.hero-stats { display:flex; gap:12px; flex-wrap:wrap; flex:1; min-width:0; }
+.hero-stat {
+  min-width:92px; padding:10px 16px; border-radius:14px; background:var(--surface2); border:1px solid var(--border);
+}
+.hero-stat.wide { flex:1; min-width:180px; }
+.hero-stat.late .hero-num { color:var(--red); }
+.hero-num { font-family:var(--font-mono); font-size:1.9rem; font-weight:700; line-height:1.1; color:var(--text); }
+.hero-num.sm { font-size:1.05rem; line-height:1.5; color:var(--gold); }
+.hero-lb { font-size:.66rem; font-weight:700; text-transform:uppercase; letter-spacing:.12em; color:var(--text3); margin-top:3px; }
+.hero-actions { display:flex; gap:10px; flex-wrap:wrap; }
+
+.tab-main { border:1px solid rgba(236,72,153,.45); background:rgba(236,72,153,.1); color:var(--text); }
+
+/* ordinateur : vrai menu latéral à gauche, Suivi en premier */
+@media (min-width: 821px) {
+  .wrap { display:grid; grid-template-columns:216px minmax(0,1fr); column-gap:22px; align-items:start; }
+  .wrap > .header, .wrap > .backup-bar, .wrap > .kpi-grid { grid-column:1 / -1; }
+  .wrap > .tabs-wrap {
+    grid-column:1; grid-row:4; flex-direction:column; gap:6px; padding:10px; width:auto;
+    border-radius:20px; margin-bottom:0; overflow:visible; position:sticky; top:16px;
+  }
+  .wrap > .tab-content { grid-column:2; grid-row:4; min-width:0; }
+  .tabs-wrap .tab {
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    text-align:left; border-radius:14px; padding:12px 16px; width:100%;
+  }
+  .tabs-wrap .tab-main { font-size:.95rem; padding:15px 16px; }
+  .tabs-wrap .tab-badge { margin-left:0; }
+}
+
+/* téléphone : le Suivi est le bouton central surélevé de la barre du bas */
+@media (max-width: 820px) {
+  .bottom-nav button.bn-main { margin-top:-24px; }
+  .bn-main .bn-ic {
+    width:56px; height:56px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(135deg,#be185d,#ec4899); color:#fff; font-size:1.5rem;
+    box-shadow:0 6px 18px rgba(190,24,93,.55); border:3px solid var(--surface-solid);
+  }
+  .bottom-nav button.bn-main.active .bn-ic { transform:none; box-shadow:0 0 0 3px var(--gold), 0 6px 18px rgba(190,24,93,.55); }
+  .bottom-nav button.bn-main.active::before { display:none; }
+  .bottom-nav button.bn-main { color:var(--text2); }
+  .bottom-nav button.bn-main .tab-badge { top:-22px; left:calc(50% + 14px); }
+  .suivi-hero { padding:14px; }
+  .hero-actions .btn { flex:1; justify-content:center; }
+  .hero-num { font-size:1.6rem; }
+}

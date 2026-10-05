@@ -577,6 +577,8 @@ function openMore() {
   document.getElementById('moreBackup').innerHTML = document.getElementById('backupSub').innerHTML;
   document.getElementById('moreSheet').classList.add('open');
 }
+// depuis le Suivi : aller directement au formulaire d'ajout Euro ou CFA
+function goAdd(type) { switchTab(type); setTimeout(quickAdd, 60); }
 function closeMore() { document.getElementById('moreSheet').classList.remove('open'); }
 function moreGo(fn) { closeMore(); fn(); }
 // bouton + : amène au formulaire d'ajout de l'onglet courant
@@ -1350,6 +1352,7 @@ document.addEventListener('DOMContentLoaded', () => {
   fillSuiviSelects();
   fillWho();
   hydrateFromCache();
+  switchTab('suivi');   // le Suivi est l'écran d'accueil
 
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('eDate').value = today;
@@ -1479,6 +1482,17 @@ function renderSuivi() {
   const badge2 = document.getElementById('suiviBadge2');
   badge2.textContent = openAll.length;
   badge2.style.display = openAll.length ? '' : 'none';
+
+  // bandeau du Suivi + carte KPI en haut de page
+  const late = openAll.filter(t => suiviAge(t) > SUIVI_ALERT_DAYS).length;
+  let sumE = 0, sumC = 0;
+  openAll.forEach(t => { const a = t.entree > 0 ? t.entree : t.sortie; if (t.cur === 'euro') sumE += a; else sumC += a; });
+  const amtTxt = [sumE ? fmtEuro(sumE) : '', sumC ? fmtCFA(sumC) : ''].filter(Boolean).join(' · ') || '—';
+  document.getElementById('heroOpen').textContent = openAll.length;
+  document.getElementById('heroLate').textContent = late;
+  document.getElementById('heroAmt').textContent  = amtTxt;
+  document.getElementById('kpiSuivi').textContent = openAll.length;
+  document.getElementById('kpiSuiviSub').textContent = late ? `⚠ ${late} en retard (> ${SUIVI_ALERT_DAYS} j)` : (openAll.length ? 'Tout est à jour' : 'Rien à vérifier');
 
   const shown = f ? all.filter(t => t.contrepartie === f) : all;
   // les plus anciens d'abord : ce sont ceux à relancer en priorité

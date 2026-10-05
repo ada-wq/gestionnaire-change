@@ -79,6 +79,11 @@
 
 <!-- KPI -->
 <div class="kpi-grid">
+  <div class="kpi kpi-suivi" data-icon="🔗" onclick="switchTab('suivi')" style="cursor:pointer;">
+    <div class="kpi-label">Suivi en cours</div>
+    <div class="kpi-value" id="kpiSuivi">—</div>
+    <div class="kpi-sub" id="kpiSuiviSub">—</div>
+  </div>
   <div class="kpi kpi-euro" data-icon="💶">
     <div class="kpi-label">Solde Euro</div>
     <div class="kpi-value" id="kpiEuro">—</div>
@@ -119,11 +124,11 @@
 
 <!-- TABS -->
 <div class="tabs-wrap">
-  <button class="tab active" data-tab="dash" onclick="switchTab('dash')">🏠 Tableau de bord</button>
+  <button class="tab tab-main active" data-tab="suivi" onclick="switchTab('suivi')">🔗 Suivi <span class="tab-badge" id="suiviBadge" style="display:none;">0</span></button>
+  <button class="tab" data-tab="dash" onclick="switchTab('dash')">🏠 Tableau de bord</button>
   <button class="tab" data-tab="euro" onclick="switchTab('euro')">💶 Euro</button>
   <button class="tab" data-tab="cfa" onclick="switchTab('cfa')">💵 CFA</button>
   <button class="tab" data-tab="analytics" onclick="switchTab('analytics')">📊 Analyses</button>
-  <button class="tab" data-tab="suivi" onclick="switchTab('suivi')">🔗 Suivi <span class="tab-badge" id="suiviBadge" style="display:none;">0</span></button>
   <button class="tab" data-tab="notes" onclick="switchTab('notes')">📓 Notes</button>
 </div>
 
@@ -392,6 +397,18 @@
 
 <!-- ══════════ NOTES TAB ══════════ -->
 <div id="suiviTab" class="tab-content">
+  <div class="suivi-hero">
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="hero-num" id="heroOpen">0</div><div class="hero-lb">en cours</div></div>
+      <div class="hero-stat late"><div class="hero-num" id="heroLate">0</div><div class="hero-lb">en retard</div></div>
+      <div class="hero-stat wide"><div class="hero-num sm" id="heroAmt">—</div><div class="hero-lb">à vérifier</div></div>
+    </div>
+    <div class="hero-actions">
+      <button class="btn btn-primary" onclick="goAdd('euro')">＋ Transaction Euro</button>
+      <button class="btn btn-primary" onclick="goAdd('cfa')">＋ Transaction CFA</button>
+    </div>
+  </div>
+
   <div class="filters">
     <div class="fg"><label>Contrepartie</label><select id="suiviFPerson" onchange="renderSuivi()"></select></div>
     <div class="fg" style="flex:3;color:var(--text3);font-size:.76rem;align-self:center;line-height:1.5;">
@@ -556,8 +573,8 @@
 <nav class="bottom-nav" id="bottomNav">
   <button data-nav="dash" class="active" onclick="switchTab('dash')"><span class="bn-ic">🏠</span><span>Accueil</span></button>
   <button data-nav="euro" onclick="switchTab('euro')"><span class="bn-ic">💶</span><span>Euro</span></button>
+  <button data-nav="suivi" class="bn-main" onclick="switchTab('suivi')"><span class="bn-ic">🔗</span><span>Suivi</span><span class="tab-badge" id="suiviBadge2" style="display:none;">0</span></button>
   <button data-nav="cfa" onclick="switchTab('cfa')"><span class="bn-ic">💵</span><span>CFA</span></button>
-  <button data-nav="suivi" onclick="switchTab('suivi')"><span class="bn-ic">🔗</span><span>Suivi</span><span class="tab-badge" id="suiviBadge2" style="display:none;">0</span></button>
   <button data-nav="more" onclick="openMore()"><span class="bn-ic">☰</span><span>Plus</span></button>
 </nav>
 <button class="fab" id="fab" onclick="quickAdd()" aria-label="Nouvelle transaction">＋</button>
