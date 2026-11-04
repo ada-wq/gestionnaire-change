@@ -1033,3 +1033,61 @@ th { color:var(--brand-text); }
   .a-stats { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .a-info { margin-top:-4px; }
 }
+
+/* ═══ ESPACE ADAM ═══ */
+.adam-lock {
+  max-width:380px; margin:40px auto; text-align:center; padding:32px 28px;
+  background:var(--surface); border:1px solid var(--border); border-radius:20px; box-shadow:var(--shadow-sm);
+}
+.adam-lock h2 { font-size:1.2rem; margin-bottom:4px; }
+.adam-token-row { text-align:left; margin-top:14px; }
+.adam-token-row label { display:block; font-size:.78rem; color:var(--text2); margin-bottom:6px; }
+.adam-hero {
+  display:flex; align-items:center; justify-content:space-between; gap:18px; flex-wrap:wrap;
+  padding:24px 26px; margin-bottom:20px; border-radius:var(--r-xl); color:#fff;
+  background:linear-gradient(135deg,#1e1b4b,#4338ca 55%,#7c3aed); box-shadow:0 12px 30px -10px rgba(67,56,202,.55);
+}
+.adam-hero-label { font-size:.82rem; color:rgba(255,255,255,.8); font-weight:500; }
+.adam-hero-total { font-size:2.4rem; font-weight:800; letter-spacing:-.03em; line-height:1.15; margin:4px 0; font-variant-numeric:tabular-nums; }
+.adam-hero-sub { font-size:.8rem; color:rgba(255,255,255,.75); }
+.adam-hero-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.adam-hero .btn { background:rgba(255,255,255,.14); border-color:rgba(255,255,255,.28); color:#fff; box-shadow:none; }
+.adam-hero .btn:hover { background:rgba(255,255,255,.24); }
+.adam-hero .btn:disabled { opacity:.6; cursor:wait; }
+.adam-banks { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px; margin-bottom:20px; }
+.adam-bank { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); box-shadow:var(--shadow-sm); overflow:hidden; }
+.adam-bank-head { display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid var(--border); }
+.adam-logo { width:38px; height:38px; border-radius:11px; flex-shrink:0; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:800; font-size:1rem; }
+.adam-logo.sm { width:30px; height:30px; border-radius:9px; font-size:.85rem; }
+.adam-bank-title { flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
+.adam-bank-title b { font-size:.95rem; }
+.adam-valid { font-size:.72rem; color:var(--text3); }
+.adam-bank-total { font-weight:700; font-size:1.05rem; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.adam-acc { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:11px 16px; border-bottom:1px solid var(--border); }
+.adam-acc-main { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.adam-acc-name { font-size:.88rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.adam-acc-main small { font-size:.74rem; color:var(--text3); }
+.adam-err { display:flex; align-items:center; gap:4px; color:var(--red) !important; }
+.adam-err .ic { width:12px; height:12px; }
+.adam-acc-amt { font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.adam-bank-foot { display:flex; justify-content:flex-end; gap:6px; padding:10px 12px; background:var(--surface2); }
+.adam-bank-foot a { text-decoration:none; }
+.adam-links { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:10px; }
+.adam-link {
+  display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:var(--r);
+  border:1px solid var(--border2); background:var(--surface); color:var(--text); text-decoration:none; font-size:.86rem; font-weight:600;
+  transition:border-color .12s, box-shadow .12s;
+}
+.adam-link small { margin-left:auto; font-size:.72rem; font-weight:500; color:#7c3aed; }
+.adam-link.done small { color:var(--green); }
+.adam-link:hover { border-color:#7c3aed; box-shadow:var(--focus); }
+.adam-foot { display:flex; justify-content:center; margin:6px 0 20px; }
+@media (max-width: 860px) {
+  .adam-lock { margin:16px auto; padding:24px 18px; }
+  .adam-hero { padding:20px 18px; }
+  .adam-hero-total { font-size:2rem; }
+  .adam-hero-actions { width:100%; }
+  .adam-hero-actions .btn { flex:1; }
+  .adam-banks { grid-template-columns:1fr; }
+  .adam-links { grid-template-columns:1fr 1fr; }
+}

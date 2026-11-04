@@ -103,6 +103,9 @@
       <button class="sb-link" onclick="openHistory()"><svg class="ic"><use href="#i-history"/></svg><span>Sauvegardes</span></button>
       <button class="sb-link" onclick="openTrash()"><svg class="ic"><use href="#i-trash"/></svg><span>Corbeille</span><span class="sb-count" id="trashCount"></span></button>
       <button class="sb-link" onclick="openLog()"><svg class="ic"><use href="#i-list"/></svg><span>Journal</span></button>
+
+      <div class="sb-label adam-only" style="display:none;">Personnel</div>
+      <button class="tab adam-only" data-tab="adam" onclick="switchTab('adam')" style="display:none;"><svg class="ic"><use href="#i-lock"/></svg><span>Espace Adam</span></button>
     </nav>
 
     <div class="sb-footer">
@@ -449,6 +452,55 @@
         </div>
       </section>
 
+      <!-- ═════════ ESPACE ADAM (privé : code + mot de passe du serveur bancaire) ═════════ -->
+      <section id="adamTab" class="tab-content">
+        <div class="adam-lock" id="adamLock">
+          <div class="pin-ic"><svg class="ic"><use href="#i-lock"/></svg></div>
+          <h2>Espace Adam</h2>
+          <p class="modal-text">Espace privé : soldes de mes banques.</p>
+          <form onsubmit="return adamUnlock(event)">
+            <input type="password" id="adamPin" class="code-input" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off">
+            <div class="adam-token-row" id="adamTokenRow" style="display:none;">
+              <label for="adamTokenInput">Mot de passe du serveur bancaire (une seule fois sur cet appareil)</label>
+              <input type="password" id="adamTokenInput" placeholder="Votre ADAM_TOKEN" autocomplete="off">
+            </div>
+            <div class="app-lock-error" id="adamLockError"></div>
+            <button type="submit" class="btn btn-primary btn-block">Ouvrir</button>
+          </form>
+        </div>
+
+        <div id="adamContent" style="display:none;">
+          <div class="adam-hero">
+            <div>
+              <div class="adam-hero-label">Total de mes banques</div>
+              <div class="adam-hero-total" id="adamTotal">—</div>
+              <div class="adam-hero-sub" id="adamSub">—</div>
+            </div>
+            <div class="adam-hero-actions">
+              <button class="btn" id="adamRefreshBtn" onclick="adamLoad(true)"><svg class="ic"><use href="#i-restore"/></svg>Actualiser</button>
+              <button class="btn" onclick="adamLock()"><svg class="ic"><use href="#i-lock"/></svg>Verrouiller</button>
+            </div>
+          </div>
+
+          <div class="adam-banks" id="adamBanks"></div>
+
+          <div class="panel pad">
+            <div class="panel-title">Évolution du total</div>
+            <div class="a-chart" id="adamChart"></div>
+          </div>
+
+          <div class="panel pad">
+            <div class="panel-title">Relier ou renouveler une banque</div>
+            <div class="adam-links" id="adamLinks"></div>
+            <p class="hint" style="margin:12px 0 0;">L'accord donné à chaque banque dure jusqu'à 180 jours. Les soldes sont relus automatiquement 4 fois par jour ; « Actualiser » les relit tout de suite (au plus toutes les 15 minutes).</p>
+          </div>
+
+          <div class="adam-foot">
+            <button class="btn btn-sm btn-ghost" onclick="adamForgetToken()">Oublier le mot de passe du serveur sur cet appareil</button>
+          </div>
+        </div>
+      </section>
+
       <!-- ═════════ ASSISTANT IA ═════════ -->
       <section id="assistantTab" class="tab-content">
         <div class="ai-layout" id="aiLayout">
@@ -577,6 +629,7 @@
       <button class="sheet-item" onclick="moreGo(openHistory)"><span class="si-ic"><svg class="ic"><use href="#i-history"/></svg></span>Sauvegardes<svg class="ic chev"><use href="#i-chevron"/></svg></button>
       <button class="sheet-item" onclick="moreGo(openTrash)"><span class="si-ic"><svg class="ic"><use href="#i-trash"/></svg></span>Corbeille<svg class="ic chev"><use href="#i-chevron"/></svg></button>
       <button class="sheet-item" onclick="moreGo(openLog)"><span class="si-ic"><svg class="ic"><use href="#i-list"/></svg></span>Journal<svg class="ic chev"><use href="#i-chevron"/></svg></button>
+      <button class="sheet-item adam-only" onclick="moreGo(()=>switchTab('adam'))" style="display:none;"><span class="si-ic"><svg class="ic"><use href="#i-lock"/></svg></span>Espace Adam<svg class="ic chev"><use href="#i-chevron"/></svg></button>
     </div>
     <div class="sheet-group-label">Préférences</div>
     <div class="sheet-list">

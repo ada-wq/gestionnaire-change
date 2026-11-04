@@ -565,11 +565,14 @@ const PAGES = {
   cfa:       ['CFA', ''],
   analytics: ['Analyses', 'Entrées, sorties et tendances'],
   notes:     ['Notes', 'Notes partagées'],
-  assistant: ['Assistant IA', 'Posez vos questions sur vos transactions, votre patrimoine et vos notes']
+  assistant: ['Assistant IA', 'Posez vos questions sur vos transactions, votre patrimoine et vos notes'],
+  adam:      ['Espace Adam', 'Soldes de mes banques']
 };
 let currentTab = 'suivi';
 
 function switchTab(tab) {
+  // l'Espace Adam se reverrouille dès qu'on le quitte
+  if (currentTab === 'adam' && tab !== 'adam') adamLock(true);
   currentTab = tab;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -578,6 +581,7 @@ function switchTab(tab) {
   if (tab === 'dash') renderDashboard();
   if (tab === 'suivi') renderSuivi();
   if (tab === 'assistant') aiRender();
+  if (tab === 'adam') adamRender();
   document.getElementById('topbar').classList.remove('search-open');
   updateNav(tab);
   updatePageHeader();
@@ -1488,6 +1492,8 @@ document.addEventListener('DOMContentLoaded', () => {
   fillWho();
   hydrateFromCache();
   switchTab('suivi');   // le Suivi est l'écran d'accueil
+  adamNavUpdate();
+  adamHandleReturn();   // retour depuis le site d'une banque (Espace Adam)
 
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('eDate').value = today;
@@ -1763,6 +1769,7 @@ function setWho(v) {
   aiCurrent = null;
   aiRenderConvList();
   if (currentTab === 'assistant') aiRenderMessages();
+  adamNavUpdate();
 }
 function fillWho() {
   ['whoAmI', 'whoAmI2'].forEach(id => {
@@ -2232,6 +2239,205 @@ function aiAddMemory(e) {
   return false;
 }
 function aiDeleteMemory(id) { db.ref('assistant/memory/' + id).remove().catch(() => {}); }
+
+// ════════════════════════════════════════════
+//  ESPACE ADAM — soldes bancaires (serveur Cloudflare + Enable Banking)
+//  Deux verrous : le code à 4 chiffres (sur l'appareil) et le mot de passe du serveur
+//  (ADAM_TOKEN, saisi une fois par appareil, jamais dans le code). Seul le serveur détient
+//  la clé Enable Banking ; les soldes ne passent pas par Firebase ni par l'assistant IA.
+// ════════════════════════════════════════════
+const ADAM_API = 'https://kanga-banques.adammhtazibert-40c.workers.dev';
+const ADAM_PIN_HASH = 'e9b454a7';   // empreinte du code, pas le code lui-même
+const ADAM_BANKS = [
+  { name: 'BNP Paribas',       country: 'FR', color: '#00915a' },
+  { name: 'Société Générale',  country: 'FR', color: '#e9041e' },
+  { name: 'Boursorama Banque', country: 'FR', color: '#d4007a' },
+  { name: 'N26',               country: 'FR', color: '#36a18b' },
+  { name: 'Wise',              country: 'BE', color: '#2f6b00' }
+];
+const ADAM_TYPES = { ITAV: 'disponible', CLAV: 'disponible', OPAV: 'disponible', XPCD: 'prévisionnel', ITBD: 'comptable',
+  CLBD: 'comptable', OPBD: 'comptable', PRCD: 'veille', VALU: 'valeur', FWAV: 'à venir', OTHR: 'autre', INFO: 'info' };
+let adamOpen = false, adamData = null;
+
+function adamHash(s) { let h = 0x811c9dc5; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16); }
+function adamToken() { try { return localStorage.getItem('kanga_adam_token') || ''; } catch (e) { return ''; } }
+function adamNavUpdate() {
+  const show = getWho() === 'Adam';
+  document.querySelectorAll('.adam-only').forEach(el => { el.style.display = show ? '' : 'none'; });
+  if (!show && currentTab === 'adam') switchTab('suivi');
+}
+
+function adamRender() {
+  document.getElementById('adamLock').style.display = adamOpen ? 'none' : '';
+  document.getElementById('adamContent').style.display = adamOpen ? '' : 'none';
+  document.getElementById('adamTokenRow').style.display = adamToken() ? 'none' : '';
+  if (adamOpen) { adamPaint(); if (!adamData) adamLoad(false); }
+  else setTimeout(() => document.getElementById('adamPin').focus(), 80);
+}
+function adamUnlock(e) {
+  e.preventDefault();
+  const pinEl = document.getElementById('adamPin');
+  const err = document.getElementById('adamLockError');
+  if (adamHash('kanga-adam:' + pinEl.value) !== ADAM_PIN_HASH) {
+    err.textContent = 'Code incorrect.'; pinEl.value = ''; pinEl.focus(); return false;
+  }
+  if (!adamToken()) {
+    const t = document.getElementById('adamTokenInput').value.trim();
+    if (!t) { err.textContent = 'Entrez le mot de passe du serveur bancaire.'; return false; }
+    try { localStorage.setItem('kanga_adam_token', t); } catch (x) {}
+    document.getElementById('adamTokenInput').value = '';
+  }
+  err.textContent = ''; pinEl.value = '';
+  adamOpen = true;
+  adamRender();
+  return false;
+}
+function adamLock(silent) {
+  adamOpen = false; adamData = null;
+  document.getElementById('adamBanks').innerHTML = '';
+  document.getElementById('adamTotal').textContent = '—';
+  if (!silent) adamRender();
+}
+function adamForgetToken() {
+  if (!confirm('Oublier le mot de passe du serveur bancaire sur cet appareil ?')) return;
+  try { localStorage.removeItem('kanga_adam_token'); } catch (e) {}
+  adamLock();
+}
+
+async function adamApi(path) {
+  const r = await fetch(ADAM_API + path, { headers: { Authorization: 'Bearer ' + adamToken() } });
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401) {
+    try { localStorage.removeItem('kanga_adam_token'); } catch (e) {}
+    adamLock();
+    document.getElementById('adamLockError').textContent = 'Mot de passe du serveur incorrect : saisissez-le à nouveau.';
+    throw new Error('refusé');
+  }
+  if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  return j;
+}
+async function adamLoad(refresh) {
+  if (!adamOpen) return;
+  const btn = document.getElementById('adamRefreshBtn');
+  btn.disabled = true;
+  document.getElementById('adamSub').textContent = refresh ? 'Interrogation des banques…' : 'Chargement…';
+  try {
+    adamData = await adamApi('/balances' + (refresh ? '?refresh=1' : ''));
+    adamPaint();
+  } catch (e) {
+    if (e.message !== 'refusé') document.getElementById('adamSub').textContent = 'Serveur bancaire injoignable : ' + e.message;
+  } finally { btn.disabled = false; }
+}
+async function adamRemove(key, name) {
+  if (!confirm(`Retirer ${name} de l'Espace Adam ?`)) return;
+  try { adamData = await adamApi('/remove?key=' + encodeURIComponent(key)); adamPaint(); toast(name + ' retirée', 'ok'); }
+  catch (e) { if (e.message !== 'refusé') toast('Erreur : ' + e.message, 'err'); }
+}
+
+// € direct, FCFA au taux de référence ; les autres devises ne sont pas converties
+function adamToEur(amount, cur) {
+  if (cur === 'EUR') return amount;
+  if (cur === 'XOF' || cur === 'XAF') return amount / customRate;
+  return null;
+}
+function adamAgo(iso) {
+  if (!iso) return 'jamais';
+  const m = Math.round((Date.now() - Date.parse(iso)) / 60000);
+  if (m < 1) return "à l'instant";
+  if (m < 60) return `il y a ${m} min`;
+  if (m < 1440) return `il y a ${Math.round(m / 60)} h`;
+  return 'le ' + new Date(iso).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+function adamMoney(amount, cur) {
+  if (cur === 'EUR') return fmtEuro(amount);
+  if (cur === 'XOF' || cur === 'XAF') return fmtCFA(amount);
+  return amount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + cur;
+}
+
+function adamPaint() {
+  const d = adamData;
+  if (!d) return;
+  let total = 0, nAcc = 0;
+  const others = {};
+  const style = name => (ADAM_BANKS.find(b => b.name === name) || {}).color || '#7c3aed';
+
+  document.getElementById('adamBanks').innerHTML = d.banks.length ? d.banks.map(b => {
+    let bankEur = 0;
+    const rows = b.accounts.map(a => {
+      const has = typeof a.amount === 'number';
+      if (has) {
+        nAcc++;
+        const eur = adamToEur(a.amount, a.currency);
+        if (eur === null) others[a.currency] = (others[a.currency] || 0) + a.amount;
+        else { bankEur += eur; total += eur; }
+      }
+      return `<div class="adam-acc">
+        <div class="adam-acc-main">
+          <span class="adam-acc-name">${esc(a.name || 'Compte')}</span>
+          <small>${esc(a.iban || a.currency)}${a.type ? ' · ' + (ADAM_TYPES[a.type] || a.type) : ''}${a.at ? ' · ' + adamAgo(a.at) : ''}</small>
+          ${a.error ? `<small class="adam-err">${svgIc('alert')}${esc(a.error)}</small>` : ''}
+        </div>
+        <span class="adam-acc-amt ${has && a.amount < 0 ? 'val-neg' : ''}">${has ? adamMoney(a.amount, a.currency) : '—'}</span>
+      </div>`;
+    }).join('');
+    const daysLeft = b.valid_until ? Math.floor((Date.parse(b.valid_until) - Date.now()) / 864e5) : null;
+    const consent = daysLeft === null ? '' : daysLeft < 0
+      ? `<span class="badge badge-suivi-late">Accès expiré</span>`
+      : daysLeft <= 15
+        ? `<span class="badge badge-suivi-late">Expire dans ${daysLeft} j</span>`
+        : `<span class="adam-valid">Accès jusqu'au ${new Date(b.valid_until).toLocaleDateString('fr-FR')}</span>`;
+    return `<div class="adam-bank">
+      <div class="adam-bank-head">
+        <span class="adam-logo" style="background:${style(b.name)}">${esc(b.name.charAt(0))}</span>
+        <div class="adam-bank-title"><b>${esc(b.name)}</b>${consent}</div>
+        <span class="adam-bank-total">${fmtEuro(bankEur)}</span>
+      </div>
+      ${rows || '<div class="a-empty">Aucun compte renvoyé par la banque.</div>'}
+      <div class="adam-bank-foot">
+        <a class="btn btn-sm" href="${adamStartUrl(b.name, b.country)}">${svgIc('restore')}Renouveler l'accès</a>
+        <button class="btn btn-sm btn-ghost" onclick="adamRemove('${esc(b.key)}', '${esc(b.name)}')">Retirer</button>
+      </div>
+    </div>`;
+  }).join('') : '<div class="sum-empty">Aucune banque reliée pour l\'instant : utilisez « Relier une banque » ci-dessous.</div>';
+
+  const otherTxt = Object.entries(others).map(([c, v]) => adamMoney(v, c)).join(' + ');
+  document.getElementById('adamTotal').textContent = fmtEuro(total);
+  document.getElementById('adamSub').textContent =
+    `${d.banks.length} banque${d.banks.length > 1 ? 's' : ''} · ${nAcc} compte${nAcc > 1 ? 's' : ''} · mis à jour ${adamAgo(d.refreshedAt)}` +
+    (otherTxt ? ` · en plus : ${otherTxt} (non converti)` : '');
+
+  // courbe : un point par jour, total converti en €
+  const pts = (d.history || []).map(h => ({
+    d: h.d,
+    v: Object.entries(h.byCur || {}).reduce((s, [c, v]) => { const e = adamToEur(v, c); return s + (e === null ? 0 : e); }, 0)
+  }));
+  const chart = document.getElementById('adamChart');
+  if (pts.length >= 2) aChartBalance(chart, pts, fmtEuro);
+  else chart.innerHTML = '<div class="a-empty">La courbe se remplira jour après jour, à chaque relevé automatique.</div>';
+
+  document.getElementById('adamLinks').innerHTML = ADAM_BANKS.map(bk => {
+    const linked = d.banks.some(b => b.name === bk.name);
+    return `<a class="adam-link ${linked ? 'done' : ''}" href="${adamStartUrl(bk.name, bk.country)}">
+      <span class="adam-logo sm" style="background:${bk.color}">${esc(bk.name.charAt(0))}</span>
+      <span>${esc(bk.name)}</span>
+      <small>${linked ? 'reliée · renouveler' : 'relier'}</small>
+    </a>`;
+  }).join('');
+}
+function adamStartUrl(name, country) {
+  return `${ADAM_API}/start?aspsp=${encodeURIComponent(name)}&country=${country}&token=${encodeURIComponent(adamToken())}`;
+}
+
+// Retour depuis le site d'une banque : adresse « #espace-adam?bank=ok&msg=… »
+function adamHandleReturn() {
+  if (!location.hash.startsWith('#espace-adam')) return;
+  const params = new URLSearchParams(location.hash.split('?')[1] || '');
+  history.replaceState(null, '', location.pathname + location.search);
+  if (getWho() !== 'Adam') setWho('Adam');
+  switchTab('adam');
+  if (params.get('bank') === 'ok') toast((params.get('msg') || 'Banque') + ' reliée', 'ok');
+  else toast('Liaison impossible : ' + (params.get('msg') || 'erreur inconnue'), 'err');
+}
 
 // Analyses : redessiner les graphiques à la nouvelle largeur (rotation du téléphone, fenêtre redimensionnée)
 let aResizeTimer = null, aLastWidth = window.innerWidth;
