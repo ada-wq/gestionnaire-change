@@ -380,11 +380,40 @@
       <!-- ═════════ ANALYSES ═════════ -->
       <section id="analyticsTab" class="tab-content">
         <div class="filters">
-          <div class="fg"><label>Devise</label><select id="aType" onchange="renderAnalytics()"><option value="euro">Euro (€)</option><option value="cfa">CFA (FCFA)</option></select></div>
-          <div class="fg"><label>Mois</label><select id="aMonth" onchange="renderAnalytics()"><option value="">Tous</option></select></div>
+          <div class="fg"><label>Devise</label>
+            <select id="aType" onchange="renderAnalytics()">
+              <option value="all">Les deux (équiv. €)</option>
+              <option value="euro">Euro (€)</option>
+              <option value="cfa">CFA (FCFA)</option>
+            </select>
+          </div>
+          <div class="fg"><label>Période</label>
+            <select id="aPeriod" onchange="aPeriodChanged()">
+              <option value="all">Tout</option>
+              <option value="month">Ce mois</option>
+              <option value="prev">Mois dernier</option>
+              <option value="3m">3 derniers mois</option>
+              <option value="12m">12 derniers mois</option>
+              <option value="year">Cette année</option>
+              <option value="custom">Personnalisée…</option>
+            </select>
+          </div>
+          <div class="fg a-custom" style="display:none;"><label>Du</label><input type="date" id="aFrom" onchange="renderAnalytics()"></div>
+          <div class="fg a-custom" style="display:none;"><label>Au</label><input type="date" id="aTo" onchange="renderAnalytics()"></div>
+          <div class="fg"><label>Personne</label><select id="aPerson" onchange="renderAnalytics()"><option value="">Toutes</option></select></div>
         </div>
+        <div class="a-info" id="aPeriodInfo"></div>
 
         <div class="kpi-grid" id="aKpis"></div>
+
+        <div class="panel pad">
+          <div class="panel-title">Évolution du solde <span class="a-sub" id="aBalSub"></span></div>
+          <div class="a-chart" id="aBalanceChart"></div>
+        </div>
+        <div class="panel pad">
+          <div class="panel-title">Entrées et sorties par mois</div>
+          <div class="a-chart" id="trendChart"></div>
+        </div>
 
         <div class="grid-2">
           <div class="panel pad"><div class="panel-title">Entrées / Sorties</div><div class="donut-wrap" id="aDonut"></div></div>
@@ -394,9 +423,9 @@
           <div class="panel pad"><div class="panel-title">Principales entrées par personne</div><div class="bar-chart" id="chartPersonIn"></div></div>
           <div class="panel pad"><div class="panel-title">Principales sorties par personne</div><div class="bar-chart" id="chartPersonOut"></div></div>
         </div>
-        <div class="panel pad">
-          <div class="panel-title">Tendance mensuelle — Entrées et Sorties</div>
-          <div id="trendChart"></div>
+        <div class="grid-2">
+          <div class="panel pad"><div class="panel-title">Suivi sur la période</div><div id="aSuivi"></div></div>
+          <div class="panel pad"><div class="panel-title">Plus grosses opérations</div><div id="aTop"></div></div>
         </div>
 
         <div class="panel">

@@ -800,16 +800,13 @@ function updateSuggestions() {
   });
 }
 
+// (Analyses) liste des personnes pour le filtre — l'ancien nom de fonction est conservé
 function updateMonthSelector() {
-  const all = [...euroT,...cfaT].map(t=>t.date.slice(0,7));
-  const months = [...new Set(all)].sort().reverse();
-  const sel = document.getElementById('aMonth');
+  const sel = document.getElementById('aPerson');
+  if (!sel) return;
   const cur = sel.value;
-  sel.innerHTML = '<option value="">Tous</option>';
-  months.forEach(m => {
-    const [y,mo] = m.split('-');
-    sel.innerHTML += `<option value="${m}" ${m===cur?'selected':''}>${new Date(y,mo-1,1).toLocaleDateString('fr-FR',{month:'long',year:'numeric'})}</option>`;
-  });
+  const persons = [...new Set([...euroT, ...cfaT].map(t => t.personne).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  sel.innerHTML = '<option value="">Toutes</option>' + persons.map(p => `<option value="${esc(p)}" ${p === cur ? 'selected' : ''}>${esc(p)}</option>`).join('');
 }
 
 // ════════════════════════════════════════════
@@ -1098,192 +1095,265 @@ function renderDashboard() {
 // ════════════════════════════════════════════
 //  ANALYTICS
 // ════════════════════════════════════════════
+// Analyses : filtres (devise, période, personne), comparaison avec la période précédente,
+// courbe du solde, barres mensuelles, répartitions, suivi et plus grosses opérations.
+function aPeriodChanged() {
+  const custom = document.getElementById('aPeriod').value === 'custom';
+  document.querySelectorAll('.a-custom').forEach(el => { el.style.display = custom ? '' : 'none'; });
+  renderAnalytics();
+}
+function aYmd(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function aDateFr(s) { return s ? new Date(s + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : ''; }
+function aMonthFr(m, long) {
+  const [y, mo] = m.split('-');
+  return new Date(+y, mo - 1, 1).toLocaleDateString('fr-FR', long ? { month: 'long', year: 'numeric' } : { month: 'short' });
+}
+// nombre court pour les axes : 12,5 k · 1,2 M
+function aShort(n) {
+  const a = Math.abs(n);
+  const s = a >= 1e6 ? (n / 1e6).toFixed(1) + ' M' : a >= 1e3 ? (n / 1e3).toFixed(1) + ' k' : String(Math.round(n));
+  return s.replace('.0 ', ' ').replace('.', ',');
+}
+
+// Période choisie + période précédente de même durée (pour les comparaisons)
+function aRange() {
+  const p = document.getElementById('aPeriod').value;
+  const now = new Date(), y = now.getFullYear(), m = now.getMonth();
+  let from = '', to = '', label = 'Toute la période', prevFrom = '', prevTo = '';
+  const month = (yy, mm) => [aYmd(new Date(yy, mm, 1)), aYmd(new Date(yy, mm + 1, 0))];
+  if (p === 'month')      { [from, to] = month(y, m);     [prevFrom, prevTo] = month(y, m - 1); label = aMonthFr(from.slice(0, 7), true); }
+  else if (p === 'prev')  { [from, to] = month(y, m - 1); [prevFrom, prevTo] = month(y, m - 2); label = aMonthFr(from.slice(0, 7), true); }
+  else if (p === '3m')    { from = aYmd(new Date(y, m - 2, 1));  to = aYmd(new Date(y, m + 1, 0)); prevFrom = aYmd(new Date(y, m - 5, 1));  prevTo = aYmd(new Date(y, m - 2, 0)); label = '3 derniers mois'; }
+  else if (p === '12m')   { from = aYmd(new Date(y, m - 11, 1)); to = aYmd(new Date(y, m + 1, 0)); prevFrom = aYmd(new Date(y, m - 23, 1)); prevTo = aYmd(new Date(y, m - 11, 0)); label = '12 derniers mois'; }
+  else if (p === 'year')  { from = y + '-01-01'; to = y + '-12-31'; prevFrom = (y - 1) + '-01-01'; prevTo = (y - 1) + '-12-31'; label = 'Année ' + y; }
+  else if (p === 'custom') {
+    from = document.getElementById('aFrom').value; to = document.getElementById('aTo').value;
+    label = (from ? 'du ' + aDateFr(from) : 'depuis le début') + (to ? ' au ' + aDateFr(to) : " jusqu'à aujourd'hui");
+    if (from && to) {
+      const f = new Date(from + 'T00:00:00'), t = new Date(to + 'T00:00:00');
+      const days = Math.round((t - f) / 864e5) + 1;
+      const pt = new Date(f); pt.setDate(pt.getDate() - 1);
+      const pf = new Date(pt); pf.setDate(pf.getDate() - days + 1);
+      prevFrom = aYmd(pf); prevTo = aYmd(pt);
+    }
+  }
+  return { from, to, prevFrom, prevTo, label };
+}
+const aIn = (r, from, to) => (!from || r.date >= from) && (!to || r.date <= to);
+
+// Lignes unifiées ; en mode « les deux », le CFA est converti en € au taux de référence
+function aRows(type, person) {
+  const rows = [];
+  if (type !== 'cfa') euroT.forEach(t => rows.push({ ...t, cur: 'euro', in: t.entree || 0, out: t.sortie || 0 }));
+  if (type !== 'euro') {
+    const k = type === 'all' ? 1 / customRate : 1;
+    cfaT.forEach(t => rows.push({ ...t, cur: 'cfa', in: (t.entree || 0) * k, out: (t.sortie || 0) * k }));
+  }
+  return (person ? rows.filter(r => r.personne === person) : rows).filter(r => r.date);
+}
+
+function aDelta(cur, prev, upIsGood) {
+  if (prev === null) return '';
+  if (!prev) return cur ? '<span class="delta-up">nouveau</span> vs période préc.' : '';
+  const pct = (cur - prev) / Math.abs(prev) * 100;
+  const up = pct >= 0, good = upIsGood ? up : !up;
+  return `<span class="${good ? 'delta-up' : 'delta-down'}">${up ? '▲' : '▼'} ${Math.abs(pct).toFixed(0)} %</span> vs période préc.`;
+}
+
 function renderAnalytics() {
-  const type  = document.getElementById('aType').value;
-  const month = document.getElementById('aMonth').value;
-  const arr   = type==='euro' ? euroT : cfaT;
-  const isE   = type==='euro';
-  const fmt   = n => isE ? fmtEuro(n) : fmtCFA(n);
-  const data  = month ? arr.filter(t=>t.date.startsWith(month)) : arr;
+  const type = document.getElementById('aType').value;
+  const person = document.getElementById('aPerson').value;
+  const fmt = type === 'cfa' ? fmtCFA : fmtEuro;
+  const R = aRange();
+  const all = aRows(type, person);
+  const data = all.filter(r => aIn(r, R.from, R.to));
+  const prev = R.prevFrom ? all.filter(r => aIn(r, R.prevFrom, R.prevTo)) : null;
+  const sum = (arr, k) => arr.reduce((s, r) => s + r[k], 0);
 
-  const totIn  = data.reduce((s,t)=>s+t.entree,0);
-  const totOut = data.reduce((s,t)=>s+t.sortie,0);
-  const net    = totIn - totOut;
-  const txIn   = data.filter(t=>t.entree>0).length;
-  const txOut  = data.filter(t=>t.sortie>0).length;
-  const avg    = data.length ? (totIn+totOut)/data.length : 0;
+  const totIn = sum(data, 'in'), totOut = sum(data, 'out'), net = totIn - totOut;
+  const pIn = prev ? sum(prev, 'in') : null, pOut = prev ? sum(prev, 'out') : null;
+  const before = all.filter(r => R.from && r.date < R.from);
+  const startBal = sum(before, 'in') - sum(before, 'out');
+  const endBal = startBal + net;
 
-  // Delta vs mois précédent (si un mois est sélectionné)
-  let deltaHTML = '';
-  if (month) {
-    const [y,m] = month.split('-').map(Number);
-    const prev = new Date(y, m-2, 1);
-    const prevKey = prev.getFullYear() + '-' + String(prev.getMonth()+1).padStart(2,'0');
-    const pData = arr.filter(t=>t.date.startsWith(prevKey));
-    const pNet = pData.reduce((s,t)=>s+t.entree-t.sortie,0);
-    if (pData.length) {
-      const diff = net - pNet;
-      deltaHTML = `<span class="${diff>=0?'delta-up':'delta-down'}">${diff>=0?'▲':'▼'} ${fmt(Math.abs(diff))}</span> vs mois précédent`;
-    }
-  }
+  document.getElementById('aPeriodInfo').innerHTML =
+    `<b>${esc(R.label)}</b> · ${data.length} transaction${data.length > 1 ? 's' : ''}` +
+    (person ? ` · ${esc(person)}` : '') +
+    (type === 'all' ? ` · CFA converti au taux 1 € = ${customRate.toLocaleString('fr-FR')} CFA` : '') +
+    (prev ? ` · comparé au ${aDateFr(R.prevFrom)} – ${aDateFr(R.prevTo)}` : '');
 
-  document.getElementById('aKpis').innerHTML = `
-    <div class="kpi kpi-green" style="padding:16px 18px;">
-      <div class="kpi-label">Total Entrées</div>
-      <div class="kpi-value" style="font-size:1.25rem;">${fmt(totIn)}</div>
-      <div class="kpi-sub">${txIn} transactions</div>
-    </div>
-    <div class="kpi kpi-red" style="padding:16px 18px;">
-      <div class="kpi-label">Total Sorties</div>
-      <div class="kpi-value" style="font-size:1.25rem;">${fmt(totOut)}</div>
-      <div class="kpi-sub">${txOut} transactions</div>
-    </div>
-    <div class="kpi ${net>=0?'kpi-green':'kpi-red'}" style="padding:16px 18px;">
-      <div class="kpi-label">Variation nette</div>
-      <div class="kpi-value" style="font-size:1.25rem;">${net>=0?'+':''}${fmt(net)}</div>
-      <div class="kpi-sub">${deltaHTML || data.length + ' transactions'}</div>
-    </div>
-    <div class="kpi kpi-gold" style="padding:16px 18px;">
-      <div class="kpi-label">Moyenne / transaction</div>
-      <div class="kpi-value" style="font-size:1.25rem;">${fmt(avg)}</div>
-      <div class="kpi-sub">${[...new Set(data.map(t=>t.personne))].length} personnes</div>
-    </div>`;
+  const kpi = (cls, icon, label, value, sub) => `<div class="kpi ${cls}">
+      <div class="kpi-top"><span class="kpi-label">${label}</span><span class="kpi-ic">${svgIc(icon)}</span></div>
+      <div class="kpi-value">${value}</div><div class="kpi-sub">${sub}</div></div>`;
+  document.getElementById('aKpis').innerHTML =
+    kpi('kpi-green', 'up', 'Entrées', fmt(totIn), `${data.filter(r => r.in > 0).length} opérations ${aDelta(totIn, pIn, true) ? '· ' + aDelta(totIn, pIn, true) : ''}`) +
+    kpi('kpi-red', 'down', 'Sorties', fmt(totOut), `${data.filter(r => r.out > 0).length} opérations ${aDelta(totOut, pOut, false) ? '· ' + aDelta(totOut, pOut, false) : ''}`) +
+    kpi(net >= 0 ? 'kpi-gold' : 'kpi-red', 'swap', 'Variation nette', (net >= 0 ? '+' : '') + fmt(net),
+        prev ? aDelta(net, (pIn || 0) - (pOut || 0), true) || 'sur la période' : 'sur la période') +
+    kpi('kpi-neutral', 'wallet', 'Solde en fin de période', fmt(endBal),
+        R.from ? `au début : ${fmt(startBal)}` : `${[...new Set(data.map(r => r.personne))].length} personnes`);
 
-  // Donut entrées / sorties
-  document.getElementById('aDonut').innerHTML = donutSVG([
-    {label:'Entrées', value:totIn, color:'var(--green)', text:fmt(totIn)},
-    {label:'Sorties', value:totOut, color:'var(--red)', text:fmt(totOut)}
-  ], data.length + ' tx', month ? 'sur le mois' : 'toute période');
+  // ── Courbe du solde (en escalier : le solde ne bouge qu'aux opérations) ──
+  const byDay = {};
+  data.forEach(r => { byDay[r.date] = (byDay[r.date] || 0) + r.in - r.out; });
+  const days = Object.keys(byDay).sort();
+  const pts = [];
+  let bal = startBal;
+  if (R.from) pts.push({ d: R.from, v: startBal });
+  days.forEach(d => { bal += byDay[d]; pts.push({ d, v: bal }); });
+  const today = aYmd(new Date());
+  const endDay = R.to && R.to < today ? R.to : today;
+  if (pts.length && pts[pts.length - 1].d < endDay) pts.push({ d: endDay, v: bal });
+  document.getElementById('aBalSub').textContent = type === 'all' ? '(Euro + CFA en €, hors argent détenu)' : '';
+  aChartBalance(document.getElementById('aBalanceChart'), pts, fmt);
 
-  // Répartition par catégorie (montants totaux)
-  const byCat = {};
-  data.forEach(t => { const c = t.categorie || 'Sans catégorie'; byCat[c] = (byCat[c]||0) + t.entree + t.sortie; });
-  const cats = Object.entries(byCat).sort((a,b)=>b[1]-a[1]).slice(0,8);
-  const maxCat = cats[0]?.[1] || 1;
-  document.getElementById('chartCat').innerHTML = cats.length ? cats.map(([n,v]) => `
-    <div class="bar-row">
-      <div class="bar-label" title="${esc(n)}">${esc(n)}</div>
-      <div class="bar-track"><div class="bar-fill" style="width:${(v/maxCat*100).toFixed(1)}%;background:var(--gold);"></div></div>
-      <div class="bar-val" style="color:var(--gold);">${fmt(v)}</div>
-    </div>`).join('')
-    : '<div style="color:var(--text3);font-size:.8rem;padding:12px;">Aucune donnée</div>';
-
-  // Top personnes — entrées
-  const byPIn = {};
-  data.forEach(t => { if (t.entree>0) byPIn[t.personne] = (byPIn[t.personne]||0) + t.entree; });
-  const topIn = Object.entries(byPIn).sort((a,b)=>b[1]-a[1]).slice(0,7);
-  const maxIn = topIn[0]?.[1] || 1;
-  document.getElementById('chartPersonIn').innerHTML = topIn.length ? topIn.map(([n,v]) => `
-    <div class="bar-row">
-      <div class="bar-label" title="${esc(n)}">${esc(n)}</div>
-      <div class="bar-track"><div class="bar-fill" style="width:${(v/maxIn*100).toFixed(1)}%;background:var(--green);"></div></div>
-      <div class="bar-val" style="color:var(--green);">${fmt(v)}</div>
-    </div>`).join('')
-    : '<div style="color:var(--text3);font-size:.8rem;padding:12px;">Aucune donnée</div>';
-
-  // Top personnes — sorties
-  const byPOut = {};
-  data.forEach(t => { if (t.sortie>0) byPOut[t.personne] = (byPOut[t.personne]||0) + t.sortie; });
-  const topOut = Object.entries(byPOut).sort((a,b)=>b[1]-a[1]).slice(0,7);
-  const maxOut = topOut[0]?.[1] || 1;
-  document.getElementById('chartPersonOut').innerHTML = topOut.length ? topOut.map(([n,v]) => `
-    <div class="bar-row">
-      <div class="bar-label" title="${esc(n)}">${esc(n)}</div>
-      <div class="bar-track"><div class="bar-fill" style="width:${(v/maxOut*100).toFixed(1)}%;background:var(--red);"></div></div>
-      <div class="bar-val" style="color:var(--red);">${fmt(v)}</div>
-    </div>`).join('')
-    : '<div style="color:var(--text3);font-size:.8rem;padding:12px;">Aucune donnée</div>';
-
-  // Tendance mensuelle SVG
+  // ── Barres mensuelles ──
   const byMonth = {};
-  arr.forEach(t => {
-    const m = t.date.slice(0,7);
-    if (!byMonth[m]) byMonth[m]={in:0,out:0};
-    byMonth[m].in += t.entree; byMonth[m].out += t.sortie;
-  });
-  const monthKeys = Object.keys(byMonth).sort();
-  if (monthKeys.length > 1) {
-    const W=700, H=190, PAD=42;
-    const allV = monthKeys.flatMap(k=>[byMonth[k].in, byMonth[k].out]);
-    const vMax = Math.max(...allV,1);
-    const x = i => PAD + i*(W-PAD*2)/(monthKeys.length-1);
-    const y = v => H - PAD - (v/vMax)*(H-PAD*2);
-    const path = (key,col) => {
-      const d = monthKeys.map((m,i)=>(i?'L':'M')+x(i)+' '+y(byMonth[m][key])).join(' ');
-      return `<path d="${d}" stroke="${col}" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
-    };
-    const area = (key,col) => {
-      const d = monthKeys.map((m,i)=>(i?'L':'M')+x(i)+' '+y(byMonth[m][key])).join(' ')
-        + ` L ${x(monthKeys.length-1)} ${H-PAD} L ${x(0)} ${H-PAD} Z`;
-      return `<path d="${d}" fill="${col}" opacity="0.08"/>`;
-    };
-    const dots = (key,col) => monthKeys.map((m,i)=>
-      `<circle cx="${x(i)}" cy="${y(byMonth[m][key])}" r="4" fill="${col}" stroke="var(--surface-solid)" stroke-width="2">
-        <title>${m}: ${fmt(byMonth[m][key])}</title></circle>`).join('');
-    const labels = monthKeys.map((m,i)=>{
-      const [yr,mo]=m.split('-');
-      const short = new Date(yr,mo-1,1).toLocaleDateString('fr-FR',{month:'short'});
-      return `<text x="${x(i)}" y="${H-8}" text-anchor="middle" font-size="10" fill="var(--text3)">${short}</text>`;
-    }).join('');
-    document.getElementById('trendChart').innerHTML = `
-      <svg viewBox="0 0 ${W} ${H}" class="trend-svg">
-        ${area('in','var(--green)')} ${area('out','var(--red)')}
-        ${path('in','var(--green)')} ${path('out','var(--red)')}
-        ${dots('in','var(--green)')} ${dots('out','var(--red)')}
-        ${labels}
-        <text x="8" y="20" font-size="10" fill="var(--green)" font-weight="600">▬ Entrées</text>
-        <text x="80" y="20" font-size="10" fill="var(--red)" font-weight="600">▬ Sorties</text>
-      </svg>`;
-  } else {
-    document.getElementById('trendChart').innerHTML = '<div style="color:var(--text3);font-size:.8rem;padding:12px 0;">Pas assez de données pour afficher la tendance (au moins 2 mois requis).</div>';
-  }
+  data.forEach(r => { const m = r.date.slice(0, 7); (byMonth[m] = byMonth[m] || { in: 0, out: 0, n: 0 }); byMonth[m].in += r.in; byMonth[m].out += r.out; byMonth[m].n++; });
+  const months = Object.keys(byMonth).sort();
+  aChartMonths(document.getElementById('trendChart'), months.slice(-24), byMonth, fmt);
 
-  // Tableau mensuel avec évolution
-  const mb = document.getElementById('monthBody');
-  mb.innerHTML = '';
-  const sortedM = Object.keys(byMonth).sort();
-  sortedM.slice().reverse().forEach(m => {
-    const d = byMonth[m]; const net2 = d.in - d.out;
-    const [y2,mo2] = m.split('-');
-    const label = new Date(y2,mo2-1,1).toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
-    const idx = sortedM.indexOf(m);
+  // ── Donut et répartitions ──
+  document.getElementById('aDonut').innerHTML = donutSVG([
+    { label: 'Entrées', value: totIn, color: 'var(--green)', text: fmt(totIn) },
+    { label: 'Sorties', value: totOut, color: 'var(--red)', text: fmt(totOut) }
+  ], data.length + ' op.', R.label.length > 18 ? 'sur la période' : R.label);
+
+  const bars = (entries, color, clickable) => entries.length ? entries.map(([n, v], i, a) => `
+    <div class="bar-row">
+      <div class="bar-label" title="${esc(n)}">${clickable ? `<span class="person-link" data-name="${esc(n)}">${esc(n)}</span>` : esc(n)}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${(v / (a[0][1] || 1) * 100).toFixed(1)}%;background:${color};"></div></div>
+      <div class="bar-val" style="color:${color};">${fmt(v)}</div>
+    </div>`).join('') : '<div class="a-empty">Aucune donnée sur cette période.</div>';
+  const group = (keyFn, valFn) => { const o = {}; data.forEach(r => { const v = valFn(r); if (v > 0) { const k = keyFn(r); o[k] = (o[k] || 0) + v; } }); return Object.entries(o).sort((a, b) => b[1] - a[1]); };
+  document.getElementById('chartCat').innerHTML = bars(group(r => r.categorie || 'Sans catégorie', r => r.in + r.out).slice(0, 8), 'var(--brand)', false);
+  document.getElementById('chartPersonIn').innerHTML = bars(group(r => r.personne, r => r.in).slice(0, 7), 'var(--green)', true);
+  document.getElementById('chartPersonOut').innerHTML = bars(group(r => r.personne, r => r.out).slice(0, 7), 'var(--red)', true);
+
+  // ── Suivi sur la période ──
+  const tracked = data.filter(r => r.statut);
+  const open = tracked.filter(r => r.statut === 'en_cours');
+  const done = tracked.filter(r => r.statut === 'termine' && r.termineLe);
+  const delays = done.map(r => Math.max(0, Math.round((new Date(r.termineLe) - new Date(r.date)) / 864e5)));
+  const avgDelay = delays.length ? Math.round(delays.reduce((a, b) => a + b, 0) / delays.length) : null;
+  const late = open.filter(r => suiviAge(r) > SUIVI_ALERT_DAYS).length;
+  const openBy = {};
+  open.forEach(r => { const k = r.contrepartie || 'Sans contrepartie'; openBy[k] = (openBy[k] || 0) + 1; });
+  document.getElementById('aSuivi').innerHTML = tracked.length ? `
+    <div class="a-stats">
+      <div><b>${open.length}</b><span>en cours</span></div>
+      <div class="${late ? 'bad' : ''}"><b>${late}</b><span>en retard</span></div>
+      <div><b>${done.length}</b><span>terminées</span></div>
+      <div><b>${avgDelay === null ? '—' : avgDelay + ' j'}</b><span>délai moyen</span></div>
+    </div>
+    ${Object.keys(openBy).length ? `<div class="a-list">${Object.entries(openBy).sort((a, b) => b[1] - a[1]).map(([k, n]) =>
+      `<div class="a-list-row"><span>${esc(k)}</span><span class="sum-count">${n} en cours</span></div>`).join('')}</div>` : ''}`
+    : '<div class="a-empty">Aucune transaction suivie sur cette période.</div>';
+
+  // ── Plus grosses opérations ──
+  const top = data.slice().sort((a, b) => Math.max(b.in, b.out) - Math.max(a.in, a.out)).slice(0, 6);
+  document.getElementById('aTop').innerHTML = top.length ? `<div class="a-list">${top.map(r => {
+    const amt = r.in > 0 ? r.in : r.out;
+    const native = r.cur === 'euro' ? fmtEuro(r.entree || r.sortie) : fmtCFA(r.entree || r.sortie);
+    return `<div class="a-list-row">
+      <span class="a-top-main"><span class="person-link" data-name="${esc(r.personne)}">${esc(r.personne)}</span>
+        <small>${aDateFr(r.date)} · <span class="badge ${r.cur === 'euro' ? 'badge-euro' : 'badge-cfa'}">${r.cur === 'euro' ? 'EUR' : 'CFA'}</span>${r.categorie ? ' · ' + esc(r.categorie) : ''}</small></span>
+      <span class="${r.in > 0 ? 'val-in' : 'val-out'}">${r.in > 0 ? '+' : '−'}${type === 'all' && r.cur === 'cfa' ? native + ' <small>≈ ' + fmtEuro(amt) + '</small>' : fmt(amt)}</span>
+    </div>`;
+  }).join('')}</div>` : '<div class="a-empty">Aucune opération sur cette période.</div>';
+
+  // ── Tableau par mois (avec évolution du net) ──
+  document.getElementById('monthBody').innerHTML = months.length ? months.slice().reverse().map(m => {
+    const d = byMonth[m], n = d.in - d.out;
+    const i = months.indexOf(m);
     let evo = '—';
-    if (idx > 0) {
-      const p = byMonth[sortedM[idx-1]];
-      const pNet = p.in - p.out;
-      const diff = net2 - pNet;
-      evo = `<span class="${diff>=0?'val-pos':'val-neg'}">${diff>=0?'▲ +':'▼ '}${fmt(diff)}</span>`;
-    }
-    const txM = arr.filter(t=>t.date.startsWith(m)).length;
-    mb.innerHTML += `<tr>
-      <td>${label}</td><td class="num">${txM}</td>
-      <td class="val-in">${fmt(d.in)}</td>
-      <td class="val-out">${fmt(d.out)}</td>
-      <td class="${net2>=0?'val-pos':'val-neg'}">${net2>=0?'+':''}${fmt(net2)}</td>
-      <td>${evo}</td>
-    </tr>`;
-  });
+    if (i > 0) { const p = byMonth[months[i - 1]]; const diff = n - (p.in - p.out); evo = `<span class="${diff >= 0 ? 'val-pos' : 'val-neg'}">${diff >= 0 ? '▲ +' : '▼ '}${fmt(diff)}</span>`; }
+    return `<tr><td>${aMonthFr(m, true)}</td><td class="num">${d.n}</td><td class="val-in">${fmt(d.in)}</td><td class="val-out">${fmt(d.out)}</td>
+      <td class="${n >= 0 ? 'val-pos' : 'val-neg'}">${n >= 0 ? '+' : ''}${fmt(n)}</td><td>${evo}</td></tr>`;
+  }).join('') : '<tr><td colspan="6" class="empty">Aucune donnée</td></tr>';
 
-  // Tableau personnes
+  // ── Classement des personnes ──
   const bp = {};
-  data.forEach(t => {
-    if (!bp[t.personne]) bp[t.personne]={in:0,out:0,count:0};
-    bp[t.personne].in += t.entree; bp[t.personne].out += t.sortie; bp[t.personne].count++;
-  });
+  data.forEach(r => { const o = bp[r.personne] || (bp[r.personne] = { in: 0, out: 0, n: 0 }); o.in += r.in; o.out += r.out; o.n++; });
   const totAll = totIn + totOut || 1;
-  const pb = document.getElementById('personBody');
-  pb.innerHTML = '';
-  Object.entries(bp).sort((a,b)=>b[1].count-a[1].count).forEach(([name,d]) => {
-    const net3 = d.in - d.out;
-    const pct = (((d.in+d.out)/totAll)*100).toFixed(1);
-    pb.innerHTML += `<tr>
-      <td>${esc(name)}</td><td class="num">${d.count}</td>
-      <td class="val-in">${fmt(d.in)}</td>
-      <td class="val-out">${fmt(d.out)}</td>
-      <td class="${net3>=0?'val-pos':'val-neg'}">${net3>=0?'+':''}${fmt(net3)}</td>
-      <td style="color:var(--text2);" class="num">${pct}%</td>
-    </tr>`;
+  document.getElementById('personBody').innerHTML = Object.keys(bp).length ? Object.entries(bp)
+    .sort((a, b) => (b[1].in + b[1].out) - (a[1].in + a[1].out)).map(([name, d]) => {
+      const n = d.in - d.out;
+      return `<tr><td><span class="person-link" data-name="${esc(name)}">${esc(name)}</span></td><td class="num">${d.n}</td>
+        <td class="val-in">${fmt(d.in)}</td><td class="val-out">${fmt(d.out)}</td>
+        <td class="${n >= 0 ? 'val-pos' : 'val-neg'}">${n >= 0 ? '+' : ''}${fmt(n)}</td>
+        <td class="num" style="color:var(--text2);">${((d.in + d.out) / totAll * 100).toFixed(1)} %</td></tr>`;
+    }).join('') : '<tr><td colspan="6" class="empty">Aucune donnée</td></tr>';
+}
+
+// Courbe du solde, dessinée à la largeur réelle de l'écran (textes lisibles sur téléphone)
+function aChartBalance(el, pts, fmt) {
+  if (pts.length < 2) { el.innerHTML = '<div class="a-empty">Pas assez de données sur cette période pour tracer une courbe.</div>'; return; }
+  const W = Math.max(300, el.clientWidth || 700), H = W < 520 ? 200 : 250;
+  const L = 54, Rt = 12, T = 12, B = 26;
+  const vs = pts.map(p => p.v);
+  let min = Math.min(...vs), max = Math.max(...vs);
+  if (min === max) { min -= 1; max += 1; }
+  const pad = (max - min) * 0.1; min -= pad; max += pad;
+  const t0 = new Date(pts[0].d).getTime(), t1 = new Date(pts[pts.length - 1].d).getTime();
+  const x = d => L + ((new Date(d).getTime() - t0) / ((t1 - t0) || 1)) * (W - L - Rt);
+  const y = v => T + (1 - (v - min) / (max - min)) * (H - T - B);
+  let line = `M${x(pts[0].d).toFixed(1)},${y(pts[0].v).toFixed(1)}`;
+  for (let i = 1; i < pts.length; i++) line += ` H${x(pts[i].d).toFixed(1)} V${y(pts[i].v).toFixed(1)}`;
+  const area = `${line} V${H - B} H${x(pts[0].d).toFixed(1)} Z`;
+  let grid = '';
+  for (let k = 0; k <= 3; k++) {
+    const v = min + (max - min) * k / 3, yy = y(v).toFixed(1);
+    grid += `<line x1="${L}" x2="${W - Rt}" y1="${yy}" y2="${yy}" class="a-grid"/><text x="${L - 6}" y="${(+yy + 4)}" text-anchor="end" class="a-axis">${aShort(v)}</text>`;
+  }
+  const zero = min < 0 && max > 0 ? `<line x1="${L}" x2="${W - Rt}" y1="${y(0).toFixed(1)}" y2="${y(0).toFixed(1)}" class="a-zero"/>` : '';
+  const xl = [pts[0], pts[Math.floor(pts.length / 2)], pts[pts.length - 1]]
+    .map((p, i) => `<text x="${x(p.d).toFixed(1)}" y="${H - 6}" text-anchor="${['start', 'middle', 'end'][i]}" class="a-axis">${aDateFr(p.d)}</text>`).join('');
+  const hits = pts.length <= 120 ? pts.map(p => `<circle cx="${x(p.d).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="6" class="a-hit"><title>${aDateFr(p.d)} : ${fmt(p.v)}</title></circle>`).join('') : '';
+  const last = pts[pts.length - 1];
+  el.innerHTML = `<svg width="${W}" height="${H}" class="a-svg" role="img" aria-label="Évolution du solde">
+    <defs><linearGradient id="aBalGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7c3aed" stop-opacity=".28"/><stop offset="1" stop-color="#7c3aed" stop-opacity="0"/></linearGradient></defs>
+    ${grid}${zero}
+    <path d="${area}" fill="url(#aBalGrad)"/>
+    <path d="${line}" fill="none" stroke="#7c3aed" stroke-width="2.2" stroke-linejoin="round"/>
+    <circle cx="${x(last.d).toFixed(1)}" cy="${y(last.v).toFixed(1)}" r="4.5" fill="#7c3aed" stroke="var(--surface)" stroke-width="2"/>
+    ${xl}${hits}
+  </svg>`;
+}
+
+// Barres groupées entrées / sorties par mois
+function aChartMonths(el, months, byMonth, fmt) {
+  if (!months.length) { el.innerHTML = '<div class="a-empty">Aucune donnée sur cette période.</div>'; return; }
+  const W = Math.max(300, el.clientWidth || 700), H = W < 520 ? 210 : 250;
+  const L = 50, Rt = 8, T = 22, B = 26;
+  const max = Math.max(1, ...months.flatMap(m => [byMonth[m].in, byMonth[m].out])) * 1.08;
+  const n = months.length, slot = (W - L - Rt) / n, bw = Math.max(3, Math.min(20, slot * 0.34));
+  const y = v => T + (1 - v / max) * (H - T - B);
+  let g = '';
+  for (let k = 0; k <= 3; k++) {
+    const v = max * k / 3, yy = y(v).toFixed(1);
+    g += `<line x1="${L}" x2="${W - Rt}" y1="${yy}" y2="${yy}" class="a-grid"/><text x="${L - 6}" y="${(+yy + 4)}" text-anchor="end" class="a-axis">${aShort(v)}</text>`;
+  }
+  const every = Math.max(1, Math.ceil(n / Math.floor((W - L) / 46)));
+  months.forEach((m, i) => {
+    const d = byMonth[m], cx = L + slot * i + slot / 2, net = d.in - d.out;
+    const tip = `<title>${aMonthFr(m, true)}\nEntrées : ${fmt(d.in)}\nSorties : ${fmt(d.out)}\nNet : ${net >= 0 ? '+' : ''}${fmt(net)}</title>`;
+    g += `<g class="a-bar">
+      <rect x="${(cx - bw - 1).toFixed(1)}" y="${y(d.in).toFixed(1)}" width="${bw.toFixed(1)}" height="${(H - B - y(d.in)).toFixed(1)}" rx="3" fill="var(--green)">${tip}</rect>
+      <rect x="${(cx + 1).toFixed(1)}" y="${y(d.out).toFixed(1)}" width="${bw.toFixed(1)}" height="${(H - B - y(d.out)).toFixed(1)}" rx="3" fill="var(--red)">${tip}</rect>
+    </g>`;
+    if (i % every === 0) {
+      const lab = aMonthFr(m) + (m.endsWith('-01') || i === 0 ? ' ' + m.slice(2, 4) : '');
+      g += `<text x="${cx.toFixed(1)}" y="${H - 6}" text-anchor="middle" class="a-axis">${lab}</text>`;
+    }
   });
+  el.innerHTML = `<svg width="${W}" height="${H}" class="a-svg" role="img" aria-label="Entrées et sorties par mois">
+    ${g}
+    <g class="a-legend" transform="translate(${W - 150},6)">
+      <rect width="10" height="10" rx="2" fill="var(--green)"/><text x="15" y="9">Entrées</text>
+      <rect x="74" width="10" height="10" rx="2" fill="var(--red)"/><text x="89" y="9">Sorties</text>
+    </g>
+  </svg>`;
 }
 
 // ════════════════════════════════════════════
@@ -2162,6 +2232,15 @@ function aiAddMemory(e) {
   return false;
 }
 function aiDeleteMemory(id) { db.ref('assistant/memory/' + id).remove().catch(() => {}); }
+
+// Analyses : redessiner les graphiques à la nouvelle largeur (rotation du téléphone, fenêtre redimensionnée)
+let aResizeTimer = null, aLastWidth = window.innerWidth;
+window.addEventListener('resize', () => {
+  if (window.innerWidth === aLastWidth) return;   // sur téléphone, la barre d'adresse change seulement la hauteur
+  aLastWidth = window.innerWidth;
+  clearTimeout(aResizeTimer);
+  aResizeTimer = setTimeout(() => { if (currentTab === 'analytics') renderAnalytics(); }, 250);
+});
 
 // Fenêtres : clic sur le fond ou touche Échap pour fermer (sauf la demande de code)
 document.addEventListener('click', e => {
