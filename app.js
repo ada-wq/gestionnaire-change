@@ -571,8 +571,6 @@ const PAGES = {
 let currentTab = 'suivi';
 
 function switchTab(tab) {
-  // l'Espace Adam se reverrouille dès qu'on le quitte
-  if (currentTab === 'adam' && tab !== 'adam') adamLock(true);
   currentTab = tab;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -2258,21 +2256,30 @@ const ADAM_BANKS = [
 ];
 const ADAM_TYPES = { ITAV: 'disponible', CLAV: 'disponible', OPAV: 'disponible', XPCD: 'prévisionnel', ITBD: 'comptable',
   CLBD: 'comptable', OPBD: 'comptable', PRCD: 'veille', VALU: 'valeur', FWAV: 'à venir', OTHR: 'autre', INFO: 'info' };
-let adamOpen = false, adamData = null;
+let adamOpen = false, adamData = null, adamLoadedAt = 0;
+// Déverrouillage retenu 1 heure sur l'appareil (prolongé à chaque utilisation) : pas de code à chaque actualisation
+const ADAM_UNLOCK_MS = 60 * 60 * 1000;
+function adamUntil() { try { return Number(localStorage.getItem('kanga_adam_until')) || 0; } catch (e) { return 0; } }
+function adamTouch() { try { localStorage.setItem('kanga_adam_until', String(Date.now() + ADAM_UNLOCK_MS)); } catch (e) {} }
 
 function adamHash(s) { let h = 0x811c9dc5; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16); }
 function adamToken() { try { return localStorage.getItem('kanga_adam_token') || ''; } catch (e) { return ''; } }
 function adamNavUpdate() {
   const show = getWho() === 'Adam';
   document.querySelectorAll('.adam-only').forEach(el => { el.style.display = show ? '' : 'none'; });
-  if (!show && currentTab === 'adam') switchTab('suivi');
+  if (!show) { adamLock(true); if (currentTab === 'adam') switchTab('suivi'); }
 }
 
 function adamRender() {
+  if (!adamOpen && adamToken() && adamUntil() > Date.now()) adamOpen = true;   // déverrouillé il y a moins d'1 h
+  if (adamOpen) adamTouch();
   document.getElementById('adamLock').style.display = adamOpen ? 'none' : '';
   document.getElementById('adamContent').style.display = adamOpen ? '' : 'none';
   document.getElementById('adamTokenRow').style.display = adamToken() ? 'none' : '';
-  if (adamOpen) { adamPaint(); if (!adamData) adamLoad(false); }
+  if (adamOpen) {
+    adamPaint();
+    if (!adamData || Date.now() - adamLoadedAt > 5 * 60 * 1000) adamLoad(false);   // données de plus de 5 min : on recharge
+  }
   else setTimeout(() => document.getElementById('adamPin').focus(), 80);
 }
 function adamUnlock(e) {
@@ -2290,11 +2297,13 @@ function adamUnlock(e) {
   }
   err.textContent = ''; pinEl.value = '';
   adamOpen = true;
+  adamTouch();
   adamRender();
   return false;
 }
 function adamLock(silent) {
   adamOpen = false; adamData = null;
+  try { localStorage.removeItem('kanga_adam_until'); } catch (e) {}
   document.getElementById('adamBanks').innerHTML = '';
   document.getElementById('adamTotal').textContent = '—';
   if (!silent) adamRender();
@@ -2326,6 +2335,7 @@ async function adamLoad(refresh) {
   document.getElementById('adamSub').textContent = refresh ? 'Interrogation des banques…' : 'Chargement…';
   try {
     adamData = await adamApi('/balances' + (refresh ? '?refresh=1' : ''));
+    adamLoadedAt = Date.now();
     adamPaint();
   } catch (e) {
     if (e.message !== 'refusé') document.getElementById('adamSub').textContent = 'Serveur bancaire injoignable : ' + e.message;
