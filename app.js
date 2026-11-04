@@ -1689,6 +1689,10 @@ function getWho() { try { return localStorage.getItem('kanga_who') || ''; } catc
 function setWho(v) {
   try { localStorage.setItem('kanga_who', v); } catch (e) {}
   ['whoAmI', 'whoAmI2'].forEach(id => { const s = document.getElementById(id); if (s) s.value = v; });
+  // conversations de l'assistant : privées par personne → on change de liste
+  aiCurrent = null;
+  aiRenderConvList();
+  if (currentTab === 'assistant') aiRenderMessages();
 }
 function fillWho() {
   ['whoAmI', 'whoAmI2'].forEach(id => {
@@ -2022,12 +2026,13 @@ async function aiSend(e, preset) {
   const input = document.getElementById('aiInput');
   const q = String(preset || input.value).trim();
   if (!q) return false;
+  if (!getWho()) { toast('Choisissez d\'abord votre nom (« Qui ? »)', 'err'); aiRenderMessages(); return false; }
   input.value = ''; aiAutosize();
 
   const now = () => new Date().toISOString();
-  if (!aiCurrent || !aiConvs[aiCurrent]) {
+  if (!aiCurrent || !aiVisible(aiConvs[aiCurrent])) {
     aiCurrent = genId();
-    aiConvs[aiCurrent] = { title: q.slice(0, 70), createdAt: now(), updatedAt: now(), messages: [] };
+    aiConvs[aiCurrent] = { title: q.slice(0, 70), owner: getWho(), createdAt: now(), updatedAt: now(), messages: [] };
   }
   const conv = aiConvs[aiCurrent];
   conv.messages = toArr(conv.messages);
@@ -2079,9 +2084,25 @@ function aiRender() {
   let m = ''; try { m = localStorage.getItem('kanga_gemini_model') || ''; } catch (e) {}
   document.getElementById('aiModelInfo').textContent = m;
 }
+// Conversations privées : chacun voit les siennes (nom choisi dans « Qui ? ») ;
+// les anciennes conversations sans propriétaire restent visibles par tous. La mémoire est commune.
+function aiVisible(c) { return !!c && (!c.owner || c.owner === getWho()); }
+
 function aiRenderMessages(loading) {
   const box = document.getElementById('aiMessages');
+  if (!box) return;
+  if (aiCurrent && !aiVisible(aiConvs[aiCurrent])) aiCurrent = null;
   const conv = aiCurrent && aiConvs[aiCurrent];
+  if (!getWho() && !loading) {
+    document.getElementById('aiChatTitle').textContent = 'Qui êtes-vous ?';
+    box.innerHTML = `<div class="ai-welcome">
+      <div class="ai-welcome-ic">${svgIc('user')}</div>
+      <h3>Qui utilise cet appareil ?</h3>
+      <p>Vos conversations avec l'assistant sont privées : choisissez votre nom pour voir les vôtres. La mémoire reste commune à tous.</p>
+      <div class="ai-chips">${SUIVI_PERSONS.map(p => `<button class="ai-chip" onclick="setWho('${p}')">${p}</button>`).join('')}</div>
+    </div>`;
+    return;
+  }
   const msgs = conv ? toArr(conv.messages) : [];
   document.getElementById('aiChatTitle').textContent = conv ? (conv.title || 'Conversation') : 'Nouvelle conversation';
   if (!msgs.length && !loading) {
@@ -2103,10 +2124,11 @@ function aiRenderConvList() {
   const el = document.getElementById('aiConvList');
   if (!el) return;
   const list = Object.entries(aiConvs).map(([id, c]) => ({ id, ...c }))
+    .filter(c => getWho() && aiVisible(c))
     .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
   el.innerHTML = list.length ? list.map(c => `<div class="ai-conv${c.id === aiCurrent ? ' active' : ''}" onclick="aiOpenConv('${c.id}')">
       <div class="ai-conv-body">
-        <div class="ai-conv-t">${esc(c.title || 'Sans titre')}</div>
+        <div class="ai-conv-t">${esc(c.title || 'Sans titre')}${c.owner ? '' : ' <span class="badge badge-cat">partagée</span>'}</div>
         <div class="ai-conv-d">${new Date(c.updatedAt || c.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} · ${toArr(c.messages).length} messages</div>
       </div>
       <button class="act-btn act-del" onclick="event.stopPropagation(); aiDeleteConv('${c.id}')" title="Supprimer">${svgIc('trash')}</button>
