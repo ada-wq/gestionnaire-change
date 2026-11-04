@@ -564,7 +564,8 @@ const PAGES = {
   euro:      ['Euro', ''],
   cfa:       ['CFA', ''],
   analytics: ['Analyses', 'Entrées, sorties et tendances'],
-  notes:     ['Notes', 'Notes partagées']
+  notes:     ['Notes', 'Notes partagées'],
+  assistant: ['Assistant IA', 'Posez vos questions sur vos transactions, votre patrimoine et vos notes']
 };
 let currentTab = 'suivi';
 
@@ -576,6 +577,7 @@ function switchTab(tab) {
   if (tab === 'analytics') renderAnalytics();
   if (tab === 'dash') renderDashboard();
   if (tab === 'suivi') renderSuivi();
+  if (tab === 'assistant') aiRender();
   document.getElementById('topbar').classList.remove('search-open');
   updateNav(tab);
   updatePageHeader();
@@ -1414,6 +1416,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   listen();
   listenTrash();
+  aiInit();
 
   mirrorDb.ref('/latest').once('value').then(s => {
     if (s.exists()) {
@@ -1816,6 +1819,306 @@ function hydrateFromCache() {
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }
+
+// ════════════════════════════════════════════
+//  ASSISTANT IA — Google Gemini (offre gratuite)
+//  La clé reste sur l'appareil (localStorage), jamais dans le code publié.
+//  Conversations et mémoire : Firebase /assistant (partagées entre appareils).
+//  À chaque question, KANGA joint un dossier complet : transactions, argent détenu,
+//  notes, patrimoine jour par jour et mémoire. L'IA lit et répond, elle ne modifie rien.
+// ════════════════════════════════════════════
+const AI_API = 'https://generativelanguage.googleapis.com/v1beta';
+// utilisés seulement si la liste des modèles n'est pas lisible ; le meilleur « Flash » est choisi automatiquement
+const AI_FALLBACK_MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'];
+const AI_SUGGESTIONS = [
+  'Pourquoi le patrimoine total a baissé récemment ?',
+  'Trouve l\'entrée CFA qui correspond à ma dernière entrée euro',
+  'Fais une synthèse de mes notes',
+  'Y a-t-il des anomalies ce mois-ci ?',
+  'Fais le point par personne (transactions et argent détenu)'
+];
+let aiConvs = {}, aiMem = {}, aiCurrent = null, aiBusy = false;
+
+function aiKey() { try { return localStorage.getItem('kanga_gemini_key') || ''; } catch (e) { return ''; } }
+function aiSaveKey(e) {
+  e.preventDefault();
+  const k = document.getElementById('aiKeyInput').value.trim();
+  if (!k) return false;
+  try { localStorage.setItem('kanga_gemini_key', k); localStorage.removeItem('kanga_gemini_model'); } catch (err) {}
+  document.getElementById('aiKeyInput').value = '';
+  aiShowSetup(false);
+  toast('Clé enregistrée sur cet appareil', 'ok');
+  return false;
+}
+function aiForgetKey() {
+  if (!confirm('Supprimer la clé Gemini de cet appareil ?')) return;
+  try { localStorage.removeItem('kanga_gemini_key'); localStorage.removeItem('kanga_gemini_model'); } catch (e) {}
+  aiRender();
+}
+function aiShowSetup(show) {
+  const has = !!aiKey();
+  document.getElementById('aiSetup').style.display = (show || !has) ? '' : 'none';
+  document.getElementById('aiForgetBtn').style.display = has ? '' : 'none';
+  document.getElementById('aiCloseSetupBtn').style.display = has ? '' : 'none';
+  document.getElementById('aiLayout').classList.remove('show-side');
+}
+function aiToggleSide() { document.getElementById('aiLayout').classList.toggle('show-side'); }
+function aiAutosize() {
+  const t = document.getElementById('aiInput');
+  t.style.height = 'auto';
+  t.style.height = Math.min(t.scrollHeight, 160) + 'px';
+}
+
+function aiInit() {
+  db.ref('assistant/conversations').on('value', s => {
+    aiConvs = s.val() || {};
+    aiRenderConvList();
+    if (currentTab === 'assistant' && !aiBusy) aiRenderMessages();
+  });
+  db.ref('assistant/memory').on('value', s => { aiMem = s.val() || {}; aiRenderMemory(); });
+}
+
+// ── Choix automatique du modèle : le « Flash » stable le plus récent ──
+function aiVersion(name) { const m = name.match(/gemini-(\d+(?:\.\d+)?)/); return m ? parseFloat(m[1]) : 0; }
+async function aiModel(key) {
+  try { const saved = localStorage.getItem('kanga_gemini_model'); if (saved) return saved; } catch (e) {}
+  let model = AI_FALLBACK_MODELS[0];
+  try {
+    const r = await fetch(`${AI_API}/models?pageSize=200`, { headers: { 'x-goog-api-key': key } });
+    if (r.ok) {
+      const j = await r.json();
+      const names = (j.models || [])
+        .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+        .map(m => m.name.replace(/^models\//, ''));
+      const byVersion = (a, b) => aiVersion(b) - aiVersion(a);
+      const stable = names.filter(n => /^gemini-\d+(\.\d+)?-flash$/.test(n)).sort(byVersion);
+      const other  = names.filter(n => /flash/.test(n) && !/(image|tts|audio|live|embed|thinking)/.test(n)).sort(byVersion);
+      model = stable[0] || other[0] || model;
+    }
+  } catch (e) {}
+  try { localStorage.setItem('kanga_gemini_model', model); } catch (e) {}
+  return model;
+}
+
+// ── Dossier envoyé à l'IA : tout KANGA sous forme compacte ──
+function aiCell(v) { return String(v == null ? '' : v).replace(/[;\r\n]+/g, ' ').trim(); }
+function aiDossier() {
+  const r2 = n => Math.round(n * 100) / 100;
+  const eS = euroT.reduce((a, t) => a + (t.entree || 0) - (t.sortie || 0), 0);
+  const cS = cfaT.reduce((a, t) => a + (t.entree || 0) - (t.sortie || 0), 0);
+  const hE = holdingsTotalEUR();
+  const L = [];
+  L.push(`Date du jour : ${new Date().toISOString().slice(0, 10)}`);
+  L.push(`Taux de référence : 1 € = ${customRate} CFA (taux officiel : ${OFFICIAL_RATE})`);
+  L.push(`Patrimoine actuel : solde Euro ${r2(eS)} € ; solde CFA ${Math.round(cS)} CFA (≈ ${r2(cS / customRate)} €) ; argent détenu par des personnes ≈ ${r2(hE)} € ; TOTAL ≈ ${r2(eS + cS / customRate + hE)} €`);
+
+  // patrimoine jour par jour, à partir des transactions (au taux de référence actuel, hors argent détenu)
+  const byDay = {};
+  euroT.forEach(t => { const d = t.date || '?'; (byDay[d] = byDay[d] || { e: 0, c: 0 }).e += (t.entree || 0) - (t.sortie || 0); });
+  cfaT.forEach(t => { const d = t.date || '?'; (byDay[d] = byDay[d] || { e: 0, c: 0 }).c += (t.entree || 0) - (t.sortie || 0); });
+  let ce = 0, cc = 0;
+  L.push('', '## Patrimoine jour par jour (cumul des transactions, au taux de référence, hors argent détenu)', 'date;solde_eur;solde_cfa;total_eur;variation_eur');
+  let prev = 0;
+  Object.keys(byDay).sort().forEach(d => {
+    ce += byDay[d].e; cc += byDay[d].c;
+    const tot = ce + cc / customRate;
+    L.push(`${d};${r2(ce)};${Math.round(cc)};${r2(tot)};${r2(tot - prev)}`);
+    prev = tot;
+  });
+
+  const txLines = arr => arr.slice().sort((a, b) => (a.date || '').localeCompare(b.date || '')).map(t =>
+    [t.id, t.date, t.operation, t.entree || 0, t.sortie || 0, t.personne, t.categorie, t.taux, t.statut, t.contrepartie, t.remarque].map(aiCell).join(';'));
+  L.push('', '## Transactions EURO (montants en €)', 'id;date;operation;entree;sortie;personne;categorie;taux;statut_suivi;suivi_avec;remarque', ...txLines(euroT));
+  L.push('', '## Transactions CFA (montants en FCFA)', 'id;date;operation;entree;sortie;personne;categorie;taux;statut_suivi;suivi_avec;remarque', ...txLines(cfaT));
+
+  L.push('', '## Argent détenu par des personnes (hors transactions)', 'personne;devise;montant;remarque');
+  holdings.forEach(h => L.push([h.personne, h.devise, h.montant, h.remarque].map(aiCell).join(';')));
+
+  L.push('', '## Notes');
+  notes.forEach(n => L.push(`### ${n.title || 'Sans titre'} (modifiée le ${(n.updatedAt || '').slice(0, 10)})`, String(n.content || '').slice(0, 4000)));
+
+  const mem = Object.values(aiMem || {});
+  L.push('', '## Mémoire (faits à retenir donnés par l\'utilisateur)');
+  mem.forEach(m => L.push('- ' + m.text));
+  if (!mem.length) L.push('(vide)');
+  return L.join('\n');
+}
+
+const AI_SYSTEM = `Tu es l'assistant de KANGA, une application de suivi d'échanges Euro ↔ Franc CFA entre Adam, Abbas et Youssouf.
+L'utilisateur s'appelle ${'{WHO}'}. Réponds en français, clairement et brièvement, avec des listes courtes et les montants exacts.
+
+Règles :
+- Appuie-toi uniquement sur les DONNÉES KANGA ci-dessous. Si une information manque, dis-le au lieu d'inventer.
+- Vérifie chaque calcul. Cite la date, la personne et le montant des transactions dont tu parles.
+- Patrimoine total = solde Euro + solde CFA ÷ taux de référence + argent détenu par des personnes.
+- Variation du patrimoine : compare les dates dans « Patrimoine jour par jour », repère les jours où il a baissé et liste les transactions de ces jours qui l'expliquent. Rappelle qu'un changement de l'argent détenu ou du taux de référence peut aussi le faire varier (ils ne sont pas dans l'historique).
+- Contrepartie entre Euro et CFA : montant CFA ≈ montant € × taux (taux de la transaction, sinon entre 650 et 700). Compare les noms (identiques, proches ou cités dans les remarques), les dates (quelques jours à quelques semaines d'écart) et pense aux paiements en plusieurs fois (somme de 2 ou 3 transactions). Propose les meilleurs candidats avec un niveau de confiance (fort, moyen, faible).
+- Anomalies à signaler : doublons, taux inhabituels, sorties sans contrepartie, suivis en cours depuis longtemps, soldes négatifs, montants très inhabituels.
+- Tu ne peux rien modifier dans KANGA : propose, l'utilisateur décide.
+- Si l'utilisateur te demande de retenir quelque chose, termine ta réponse par une ligne « MEMO: <le fait à retenir> » (une ligne par fait).`;
+
+async function aiAsk(key, messages) {
+  const history = messages.filter(m => !m.error && !m.failed).slice(-20)
+    .map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.text }] }));
+  const system = AI_SYSTEM.replace('{WHO}', getWho() || 'l\'utilisateur') + '\n\n# DONNÉES KANGA\n' + aiDossier();
+  const body = JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: history });
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const model = await aiModel(key);
+    let r;
+    try {
+      r = await fetch(`${AI_API}/models/${model}:generateContent`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body
+      });
+    } catch (e) { throw new Error('Pas de connexion internet : l\'assistant a besoin du réseau.'); }
+    const j = await r.json().catch(() => ({}));
+    if (r.ok) {
+      const cand = (j.candidates || [])[0] || {};
+      const text = ((cand.content || {}).parts || []).filter(p => !p.thought).map(p => p.text || '').join('').trim();
+      if (!text) throw new Error('Réponse vide (' + (cand.finishReason || (j.promptFeedback || {}).blockReason || 'raison inconnue') + ').');
+      document.getElementById('aiModelInfo').textContent = model;
+      return text;
+    }
+    const msg = (j.error && j.error.message) || ('HTTP ' + r.status);
+    if (r.status === 404 && attempt === 0) {   // modèle retiré : on passe au suivant
+      const next = AI_FALLBACK_MODELS.find(m => m !== model) || AI_FALLBACK_MODELS[0];
+      try { localStorage.setItem('kanga_gemini_model', next); } catch (e) {}
+      continue;
+    }
+    if (r.status === 429) throw new Error('Quota gratuit atteint pour le moment. Réessayez dans une minute, ou demain si la limite du jour est atteinte.');
+    if (r.status === 400 && /api key/i.test(msg)) throw new Error('Clé invalide. Vérifiez-la dans « Clé Gemini ».');
+    if (r.status === 403) throw new Error('Clé refusée par Google : ' + msg);
+    throw new Error('Erreur Gemini : ' + msg);
+  }
+  throw new Error('Aucun modèle Gemini disponible avec cette clé.');
+}
+
+async function aiSend(e, preset) {
+  if (e && e.preventDefault) e.preventDefault();
+  if (aiBusy) return false;
+  const key = aiKey();
+  if (!key) { aiShowSetup(true); return false; }
+  const input = document.getElementById('aiInput');
+  const q = String(preset || input.value).trim();
+  if (!q) return false;
+  input.value = ''; aiAutosize();
+
+  const now = () => new Date().toISOString();
+  if (!aiCurrent || !aiConvs[aiCurrent]) {
+    aiCurrent = genId();
+    aiConvs[aiCurrent] = { title: q.slice(0, 70), createdAt: now(), updatedAt: now(), messages: [] };
+  }
+  const conv = aiConvs[aiCurrent];
+  conv.messages = toArr(conv.messages);
+  const userMsg = { role: 'user', text: q, ts: now(), who: getWho() || '' };
+  conv.messages.push(userMsg);
+  aiBusy = true;
+  document.getElementById('aiSendBtn').disabled = true;
+  aiRenderMessages(true);
+
+  try {
+    const answer = await aiAsk(key, conv.messages);
+    const memos = [];
+    answer.replace(/^\s*MEMO:\s*(.+)$/gim, (all, fact) => { memos.push(fact.trim()); return ''; });
+    const clean = answer.replace(/^\s*MEMO:.*$/gim, '').trim();
+    memos.forEach(aiSaveMemory);
+    conv.messages.push({ role: 'model', text: clean + (memos.length ? '\n\n*Mémorisé : ' + memos.join(' · ') + '*' : ''), ts: now() });
+  } catch (err) {
+    userMsg.failed = true;
+    conv.messages.push({ role: 'model', text: err.message, ts: now(), error: true });
+  }
+  conv.updatedAt = now();
+  aiBusy = false;
+  document.getElementById('aiSendBtn').disabled = false;
+  db.ref('assistant/conversations/' + aiCurrent).set(conv).catch(() => {});
+  aiRenderMessages();
+  aiRenderConvList();
+  return false;
+}
+
+// ── Affichage ──
+function aiFormat(t) {
+  let h = esc(t)
+    .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+    .replace(/(^|[\s(])\*([^*\n]+)\*/g, '$1<i>$2</i>')
+    .replace(/`([^`\n]+)`/g, '<code>$1</code>');
+  h = h.split('\n').map(l => {
+    if (/^\s*([-*•]|\d+[.)])\s+/.test(l)) return '<li>' + l.replace(/^\s*([-*•]|\d+[.)])\s+/, '') + '</li>';
+    if (/^#{1,4}\s+/.test(l)) return '<div class="ai-h">' + l.replace(/^#{1,4}\s+/, '') + '</div>';
+    return l;
+  }).join('\n');
+  h = h.replace(/(?:<li>.*<\/li>\n?)+/g, m => '<ul>' + m.replace(/\n/g, '') + '</ul>');
+  return h.replace(/\n/g, '<br>').replace(/<\/ul><br>/g, '</ul>').replace(/<\/div><br>/g, '</div>');
+}
+function aiRender() {
+  aiShowSetup(false);
+  aiRenderMessages();
+  aiRenderConvList();
+  aiRenderMemory();
+  let m = ''; try { m = localStorage.getItem('kanga_gemini_model') || ''; } catch (e) {}
+  document.getElementById('aiModelInfo').textContent = m;
+}
+function aiRenderMessages(loading) {
+  const box = document.getElementById('aiMessages');
+  const conv = aiCurrent && aiConvs[aiCurrent];
+  const msgs = conv ? toArr(conv.messages) : [];
+  document.getElementById('aiChatTitle').textContent = conv ? (conv.title || 'Conversation') : 'Nouvelle conversation';
+  if (!msgs.length && !loading) {
+    box.innerHTML = `<div class="ai-welcome">
+      <div class="ai-welcome-ic">${svgIc('spark')}</div>
+      <h3>Bonjour${getWho() ? ' ' + esc(getWho()) : ''}, que voulez-vous savoir ?</h3>
+      <p>L'assistant lit toutes vos transactions, l'argent détenu, vos notes et l'évolution du patrimoine. Il explique et propose, il ne modifie rien.</p>
+      <div class="ai-chips">${AI_SUGGESTIONS.map((s, i) => `<button class="ai-chip" onclick="aiSend(null, AI_SUGGESTIONS[${i}])">${esc(s)}</button>`).join('')}</div>
+    </div>`;
+    return;
+  }
+  box.innerHTML = msgs.map(m => `<div class="ai-msg ${m.role === 'user' ? 'me' : 'bot'}${m.error ? ' err' : ''}">
+      <div class="ai-bubble">${m.role === 'user' ? esc(m.text).replace(/\n/g, '<br>') : aiFormat(m.text)}</div>
+    </div>`).join('')
+    + (loading ? '<div class="ai-msg bot"><div class="ai-bubble ai-typing"><span></span><span></span><span></span></div></div>' : '');
+  box.scrollTop = box.scrollHeight;
+}
+function aiRenderConvList() {
+  const el = document.getElementById('aiConvList');
+  if (!el) return;
+  const list = Object.entries(aiConvs).map(([id, c]) => ({ id, ...c }))
+    .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+  el.innerHTML = list.length ? list.map(c => `<div class="ai-conv${c.id === aiCurrent ? ' active' : ''}" onclick="aiOpenConv('${c.id}')">
+      <div class="ai-conv-body">
+        <div class="ai-conv-t">${esc(c.title || 'Sans titre')}</div>
+        <div class="ai-conv-d">${new Date(c.updatedAt || c.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} · ${toArr(c.messages).length} messages</div>
+      </div>
+      <button class="act-btn act-del" onclick="event.stopPropagation(); aiDeleteConv('${c.id}')" title="Supprimer">${svgIc('trash')}</button>
+    </div>`).join('') : '<div class="note-empty">Aucune conversation</div>';
+}
+function aiRenderMemory() {
+  const el = document.getElementById('aiMemList');
+  if (!el) return;
+  const list = Object.entries(aiMem || {}).map(([id, m]) => ({ id, ...m }))
+    .sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+  el.innerHTML = list.length ? list.map(m => `<div class="ai-mem-item">
+      <span>${esc(m.text)}</span>
+      <button class="act-btn act-del" onclick="aiDeleteMemory('${m.id}')" title="Oublier">${svgIc('x')}</button>
+    </div>`).join('') : '<div class="ai-mem-empty">Rien pour l\'instant. Dites « retiens que… » dans le chat, ou ajoutez un fait ici.</div>';
+}
+function aiOpenConv(id) { aiCurrent = id; aiRenderMessages(); aiRenderConvList(); document.getElementById('aiLayout').classList.remove('show-side'); }
+function aiNewConv() { aiCurrent = null; aiShowSetup(false); aiRenderMessages(); aiRenderConvList(); document.getElementById('aiInput').focus(); }
+function aiDeleteConv(id) {
+  if (!confirm('Supprimer cette conversation ?')) return;
+  db.ref('assistant/conversations/' + id).remove().catch(() => {});
+  if (aiCurrent === id) aiCurrent = null;
+}
+function aiSaveMemory(text) {
+  db.ref('assistant/memory/' + genId()).set({ text, createdAt: new Date().toISOString(), who: getWho() || '' }).catch(() => {});
+}
+function aiAddMemory(e) {
+  e.preventDefault();
+  const i = document.getElementById('aiMemInput');
+  const t = i.value.trim();
+  if (t) { aiSaveMemory(t); i.value = ''; }
+  return false;
+}
+function aiDeleteMemory(id) { db.ref('assistant/memory/' + id).remove().catch(() => {}); }
 
 // Fenêtres : clic sur le fond ou touche Échap pour fermer (sauf la demande de code)
 document.addEventListener('click', e => {

@@ -55,6 +55,10 @@
   <symbol id="i-down" viewBox="0 0 24 24"><path d="m3 7 6 6 4-4 8 8"/><path d="M15 17h6v-6"/></symbol>
   <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
   <symbol id="i-pie" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9h-9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M4 12 20 4l-6 16-3-7z"/><path d="m11 13 9-9"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3M15 8l2 2"/></symbol>
+  <symbol id="i-brain" viewBox="0 0 24 24"><path d="M9 4a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 6 1V5a2 2 0 0 0-3-1z"/><path d="M15 4a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-6 1"/></symbol>
 </svg>
 
 <!-- VERROU D'ACCÈS -->
@@ -91,6 +95,7 @@
       <button class="tab" data-tab="cfa" onclick="switchTab('cfa')"><svg class="ic"><use href="#i-cfa"/></svg><span>CFA</span></button>
 
       <div class="sb-label">Outils</div>
+      <button class="tab" data-tab="assistant" onclick="switchTab('assistant')"><svg class="ic"><use href="#i-spark"/></svg><span>Assistant IA</span></button>
       <button class="tab" data-tab="analytics" onclick="switchTab('analytics')"><svg class="ic"><use href="#i-chart"/></svg><span>Analyses</span></button>
       <button class="tab" data-tab="notes" onclick="switchTab('notes')"><svg class="ic"><use href="#i-notes"/></svg><span>Notes</span></button>
 
@@ -415,6 +420,71 @@
         </div>
       </section>
 
+      <!-- ═════════ ASSISTANT IA ═════════ -->
+      <section id="assistantTab" class="tab-content">
+        <div class="ai-layout" id="aiLayout">
+          <aside class="ai-side">
+            <div class="panel">
+              <div class="panel-head">
+                <h2>Conversations</h2>
+                <button class="btn btn-sm btn-primary" onclick="aiNewConv()"><svg class="ic"><use href="#i-plus"/></svg>Nouvelle</button>
+              </div>
+              <div class="ai-conv-list" id="aiConvList"></div>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><h2><svg class="ic"><use href="#i-brain"/></svg>Mémoire</h2></div>
+              <div class="ai-mem">
+                <div id="aiMemList"></div>
+                <form class="ai-mem-form" onsubmit="return aiAddMemory(event)">
+                  <input type="text" id="aiMemInput" placeholder="Ex. le taux habituel d'Abbas est 670">
+                  <button type="submit" class="btn btn-sm">Ajouter</button>
+                </form>
+              </div>
+            </div>
+            <div class="ai-settings">
+              <button class="btn btn-sm btn-ghost" onclick="aiShowSetup(true)"><svg class="ic"><use href="#i-key"/></svg>Clé Gemini</button>
+              <span id="aiModelInfo"></span>
+            </div>
+          </aside>
+
+          <div class="ai-chat panel">
+            <div class="ai-chat-head">
+              <button class="icon-btn ai-side-btn" onclick="aiToggleSide()" title="Conversations et mémoire"><svg class="ic"><use href="#i-list"/></svg></button>
+              <div class="ai-chat-title" id="aiChatTitle">Nouvelle conversation</div>
+              <button class="icon-btn" onclick="aiNewConv()" title="Nouvelle conversation"><svg class="ic"><use href="#i-plus"/></svg></button>
+            </div>
+
+            <div class="ai-setup" id="aiSetup" style="display:none;">
+              <div class="ai-setup-ic"><svg class="ic"><use href="#i-key"/></svg></div>
+              <h3>Connecter l'assistant (gratuit)</h3>
+              <ol>
+                <li>Ouvrez <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> et connectez-vous avec votre compte Google.</li>
+                <li>Cliquez sur <b>« Create API key »</b> (ou « Créer une clé API »), puis copiez la clé.</li>
+                <li>Collez-la ci-dessous. Elle reste sur cet appareil uniquement.</li>
+              </ol>
+              <form class="ai-key-form" onsubmit="return aiSaveKey(event)">
+                <input type="password" id="aiKeyInput" placeholder="Collez votre clé ici" autocomplete="off">
+                <button type="submit" class="btn btn-primary">Enregistrer</button>
+              </form>
+              <div class="ai-setup-foot">
+                <span>Offre gratuite : Google peut utiliser les données envoyées pour améliorer ses modèles.</span>
+                <span class="ai-setup-actions">
+                  <button class="btn btn-sm btn-ghost" id="aiForgetBtn" onclick="aiForgetKey()">Supprimer la clé</button>
+                  <button class="btn btn-sm btn-ghost" id="aiCloseSetupBtn" onclick="aiShowSetup(false)">Fermer</button>
+                </span>
+              </div>
+            </div>
+
+            <div class="ai-messages" id="aiMessages"></div>
+
+            <form class="ai-input" onsubmit="return aiSend(event)">
+              <textarea id="aiInput" rows="1" placeholder="Posez votre question sur KANGA…" oninput="aiAutosize()" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();aiSend();}"></textarea>
+              <button type="submit" class="btn btn-primary ai-send" id="aiSendBtn" title="Envoyer"><svg class="ic"><use href="#i-send"/></svg></button>
+            </form>
+          </div>
+        </div>
+      </section>
+
       <!-- ═════════ NOTES ═════════ -->
       <section id="notesTab" class="tab-content">
         <div class="notes-layout">
@@ -467,6 +537,7 @@
     <div class="sheet-grip"></div>
     <div class="sheet-group-label">Outils</div>
     <div class="sheet-list">
+      <button class="sheet-item" onclick="moreGo(()=>switchTab('assistant'))"><span class="si-ic"><svg class="ic"><use href="#i-spark"/></svg></span>Assistant IA<svg class="ic chev"><use href="#i-chevron"/></svg></button>
       <button class="sheet-item" onclick="moreGo(()=>switchTab('analytics'))"><span class="si-ic"><svg class="ic"><use href="#i-chart"/></svg></span>Analyses<svg class="ic chev"><use href="#i-chevron"/></svg></button>
       <button class="sheet-item" onclick="moreGo(()=>switchTab('notes'))"><span class="si-ic"><svg class="ic"><use href="#i-notes"/></svg></span>Notes<svg class="ic chev"><use href="#i-chevron"/></svg></button>
       <button class="sheet-item" onclick="moreGo(toggleSearch)"><span class="si-ic"><svg class="ic"><use href="#i-search"/></svg></span>Recherche<svg class="ic chev"><use href="#i-chevron"/></svg></button>
