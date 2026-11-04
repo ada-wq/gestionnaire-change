@@ -95,8 +95,10 @@ async function start(url, env) {
   } catch (e) { /* on garde 180 jours */ }
 
   const state = crypto.randomUUID();
-  await env.BANK.put('state:' + state, JSON.stringify({ aspsp, country }), { expirationTtl: 900 });
-  const r = await eb(env, '/auth', {
+  await env.BANK.put('state:' + state, JSON.stringify({ aspsp, country }), { expirationTtl: 1800 });
+  let r;
+  try {
+    r = await eb(env, '/auth', {
     method: 'POST',
     body: JSON.stringify({
       access: { valid_until: new Date(Date.now() + (seconds - 3600) * 1000).toISOString() },
@@ -105,18 +107,47 @@ async function start(url, env) {
       redirect_url: url.origin + '/callback',
       psu_type: 'personal'
     })
-  });
+    });
+  } catch (e) {
+    const msg = String((e && e.message) || e).slice(0, 400);
+    await noteLink(env, { aspsp, ok: false, step: 'demande', error: msg });
+    return backToApp('erreur', aspsp + ' : ' + msg);
+  }
   return Response.redirect(r.url, 302);
 }
 
 // ── Retour de la banque : ouverture de la session, mémorisation des comptes ──
+// Chaque tentative de liaison est notée (succès ou erreur détaillée) pour l'afficher dans Espace Adam
+async function noteLink(env, info) {
+  await env.BANK.put('lastLink', JSON.stringify({ at: new Date().toISOString(), ...info }));
+}
+
 async function callback(url, env) {
-  const err = url.searchParams.get('error');
-  if (err) return backToApp('erreur', url.searchParams.get('error_description') || err);
-  const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
   const st = state ? await env.BANK.get('state:' + state, 'json') : null;
-  if (!code || !st) return backToApp('erreur', 'Lien expiré ou invalide : recommencez depuis Espace Adam.');
+  const aspsp = st ? st.aspsp : '?';
+  try {
+    return await linkFromCallback(url, env, st, state);
+  } catch (e) {
+    const msg = String((e && e.message) || e).slice(0, 400);
+    await noteLink(env, { aspsp, ok: false, step: 'session', error: msg });
+    return backToApp('erreur', aspsp + ' : ' + msg);
+  }
+}
+
+async function linkFromCallback(url, env, st, state) {
+  const err = url.searchParams.get('error');
+  if (err) {
+    const msg = url.searchParams.get('error_description') || err;
+    await noteLink(env, { aspsp: st ? st.aspsp : '?', ok: false, step: 'banque', error: msg });
+    return backToApp('erreur', (st ? st.aspsp + ' : ' : '') + msg);
+  }
+  const code = url.searchParams.get('code');
+  if (!code || !st) {
+    const msg = !st ? 'Lien expiré ou déjà utilisé (plus de 15 minutes ?) : recommencez depuis Espace Adam.' : 'La banque n\'a pas renvoyé de code d\'autorisation.';
+    await noteLink(env, { aspsp: st ? st.aspsp : '?', ok: false, step: 'retour', error: msg, query: url.search.slice(0, 300) });
+    return backToApp('erreur', msg);
+  }
   await env.BANK.delete('state:' + state);
 
   const s = await eb(env, '/sessions', { method: 'POST', body: JSON.stringify({ code }) });
@@ -137,6 +168,8 @@ async function callback(url, env) {
     }))
   };
   await env.BANK.put('banks', JSON.stringify(banks));
+  await noteLink(env, { aspsp: name, ok: true, accounts: banks[key].accounts.length,
+    warning: banks[key].accounts.length ? '' : 'La banque n\'a renvoyé aucun compte (vérifiez les comptes cochés lors de l\'accord).' });
   try { await refreshAll(env, null, key, false); } catch (e) { /* les soldes viendront à la prochaine actualisation */ }
   return backToApp('ok', name);
 }
@@ -183,6 +216,7 @@ async function publicState(env) {
   const state = (await env.BANK.get('state', 'json')) || { balances: {}, history: [] };
   return {
     settings: (await env.BANK.get('settings', 'json')) || {},
+    lastLink: (await env.BANK.get('lastLink', 'json')) || null,
     refreshedAt: state.refreshedAt || null,
     history: state.history || [],
     banks: Object.entries(banks).map(([key, b]) => ({

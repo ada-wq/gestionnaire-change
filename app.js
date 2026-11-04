@@ -2420,6 +2420,15 @@ function adamPaint() {
   if (pts.length >= 2) aChartBalance(chart, pts, fmtEuro);
   else chart.innerHTML = '<div class="a-empty">La courbe se remplira jour après jour, à chaque relevé automatique.</div>';
 
+  // dernière tentative de liaison (affichée 2 jours) : succès, ou erreur détaillée renvoyée par la banque
+  const ll = d.lastLink;
+  document.getElementById('adamLinkInfo').innerHTML = ll && Date.now() - Date.parse(ll.at) < 2 * 864e5
+    ? `<div class="adam-linkinfo ${ll.ok && !ll.warning ? 'ok' : 'ko'}">
+        <b>Dernière liaison — ${esc(ll.aspsp)} · ${adamAgo(ll.at)}</b>
+        <span>${ll.ok ? (ll.warning ? esc(ll.warning) : `Réussie : ${ll.accounts} compte${ll.accounts > 1 ? 's' : ''} relié${ll.accounts > 1 ? 's' : ''}.`)
+          : `Échec (étape : ${esc(ll.step || '?')}) : ${esc(ll.error || 'erreur inconnue')}`}</span>
+      </div>` : '';
+
   document.getElementById('adamLinks').innerHTML = ADAM_BANKS.map(bk => {
     const linked = d.banks.some(b => b.name === bk.name);
     return `<a class="adam-link ${linked ? 'done' : ''}" href="${adamStartUrl(bk.name, bk.country)}">
