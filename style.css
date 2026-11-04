@@ -978,3 +978,27 @@ th { color:var(--brand-text); }
   .ai-setup { padding:18px 16px; }
   .ai-key-form { flex-direction:column; }
 }
+
+/* ═══ NOTES SUR TÉLÉPHONE : liste plein écran, note ouverte plein écran ═══ */
+.ne-back { display:none; }
+@media (max-width: 860px) {
+  .notes-layout { gap:0; }
+  .notes-list-panel, .notes-editor-panel {
+    height:calc(100dvh - 190px - env(safe-area-inset-bottom)); max-height:none; min-height:360px;
+  }
+  .notes-editor-panel { display:none; }
+  .notes-layout.editing .notes-list-panel { display:none; }
+  .notes-layout.editing .notes-editor-panel { display:flex; }
+  .ne-back { display:inline-flex; }
+  .nlp-head { padding:12px 14px; }
+  .note-item { padding:14px 16px; }
+  .ni-title { font-size:.98rem; }
+  .ni-preview { font-size:.84rem; white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+  .ne-toolbar { padding:10px 12px; gap:8px; }
+  .ne-title { font-size:17px !important; font-weight:700; border-color:transparent; background:transparent; padding-left:4px; }
+  .ne-title:focus { border-color:var(--brand); background:var(--input-bg); }
+  .ne-del-txt { display:none; }
+  .ne-toolbar .btn-danger { width:38px; padding:0; }
+  .ne-body { font-size:16px !important; padding:14px 16px !important; }
+  .ne-status { padding:8px 14px; }
+}

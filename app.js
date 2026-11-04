@@ -1306,6 +1306,14 @@ function openNote(id) {
   document.getElementById('neDate').textContent   = 'Créée le ' + new Date(n.createdAt).toLocaleDateString('fr-FR');
   document.getElementById('neStatus').textContent = 'Modifiée ' + new Date(n.updatedAt).toLocaleString('fr-FR');
   renderNotesList();
+  // téléphone : la note s'ouvre en plein écran (la liste est masquée)
+  document.getElementById('notesLayout').classList.add('editing');
+  if (!n.title && !n.content) setTimeout(() => document.getElementById('neTitle').focus(), 80);
+}
+// téléphone : retour de la note à la liste
+function notesBack() {
+  document.getElementById('notesLayout').classList.remove('editing');
+  renderNotesList();
 }
 function autoSaveNote() {
   if (!currentNote) return;
@@ -1335,6 +1343,7 @@ function deleteNote() {
     saveNotes(); renderNotesList();
     document.getElementById('neEmpty').style.display = 'flex';
     document.getElementById('neEditor').style.display = 'none';
+    document.getElementById('notesLayout').classList.remove('editing');
     toast('Note supprimée');
   });
 }

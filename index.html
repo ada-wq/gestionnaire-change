@@ -487,7 +487,7 @@
 
       <!-- ═════════ NOTES ═════════ -->
       <section id="notesTab" class="tab-content">
-        <div class="notes-layout">
+        <div class="notes-layout" id="notesLayout">
           <div class="notes-list-panel">
             <div class="nlp-head">
               <h3>Notes</h3>
@@ -500,8 +500,9 @@
             <div class="ne-empty" id="neEmpty"><svg class="ic"><use href="#i-notes"/></svg><p>Sélectionnez une note ou créez-en une nouvelle</p></div>
             <div id="neEditor" style="display:none;flex-direction:column;flex:1;">
               <div class="ne-toolbar">
+                <button class="icon-btn ne-back" onclick="notesBack()" title="Retour aux notes"><svg class="ic" style="transform:rotate(180deg)"><use href="#i-chevron"/></svg></button>
                 <input type="text" class="ne-title" id="neTitle" placeholder="Titre" oninput="autoSaveNote()">
-                <button class="btn btn-sm btn-danger" onclick="deleteNote()"><svg class="ic"><use href="#i-trash"/></svg>Supprimer</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteNote()" title="Supprimer la note"><svg class="ic"><use href="#i-trash"/></svg><span class="ne-del-txt">Supprimer</span></button>
               </div>
               <textarea class="ne-body" id="neBody" placeholder="Écrivez ici…" oninput="autoSaveNote()"></textarea>
               <div class="ne-status"><span id="neDate">—</span><span id="neStatus">—</span></div>
