@@ -1878,27 +1878,34 @@ function aiInit() {
   db.ref('assistant/memory').on('value', s => { aiMem = s.val() || {}; aiRenderMemory(); });
 }
 
-// ── Choix automatique du modèle : le « Flash » stable le plus récent ──
+// ── Modèles à essayer, dans l'ordre : celui qui a marché la dernière fois, puis les « Flash »
+//    stables du plus récent au plus ancien, puis les « Flash-Lite » (plus légers, moins saturés) ──
 function aiVersion(name) { const m = name.match(/gemini-(\d+(?:\.\d+)?)/); return m ? parseFloat(m[1]) : 0; }
-async function aiModel(key) {
-  try { const saved = localStorage.getItem('kanga_gemini_model'); if (saved) return saved; } catch (e) {}
-  let model = AI_FALLBACK_MODELS[0];
-  try {
-    const r = await fetch(`${AI_API}/models?pageSize=200`, { headers: { 'x-goog-api-key': key } });
-    if (r.ok) {
-      const j = await r.json();
-      const names = (j.models || [])
-        .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
-        .map(m => m.name.replace(/^models\//, ''));
-      const byVersion = (a, b) => aiVersion(b) - aiVersion(a);
-      const stable = names.filter(n => /^gemini-\d+(\.\d+)?-flash$/.test(n)).sort(byVersion);
-      const other  = names.filter(n => /flash/.test(n) && !/(image|tts|audio|live|embed|thinking)/.test(n)).sort(byVersion);
-      model = stable[0] || other[0] || model;
-    }
-  } catch (e) {}
-  try { localStorage.setItem('kanga_gemini_model', model); } catch (e) {}
-  return model;
+let aiModelList = null;
+async function aiModels(key) {
+  if (!aiModelList) {
+    let names = [];
+    try {
+      const r = await fetch(`${AI_API}/models?pageSize=200`, { headers: { 'x-goog-api-key': key } });
+      if (r.ok) {
+        const j = await r.json();
+        names = (j.models || [])
+          .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+          .map(m => m.name.replace(/^models\//, ''));
+      }
+    } catch (e) {}
+    const byVersion = (a, b) => aiVersion(b) - aiVersion(a);
+    const flash = names.filter(n => /^gemini-\d+(\.\d+)?-flash$/.test(n)).sort(byVersion);
+    const lite  = names.filter(n => /^gemini-\d+(\.\d+)?-flash-lite$/.test(n)).sort(byVersion);
+    aiModelList = [...flash, ...lite];
+    if (!aiModelList.length) aiModelList = AI_FALLBACK_MODELS.slice();
+  }
+  let saved = '';
+  try { saved = localStorage.getItem('kanga_gemini_model') || ''; } catch (e) {}
+  const list = saved ? [saved, ...aiModelList.filter(m => m !== saved)] : aiModelList.slice();
+  return list.slice(0, 5);
 }
+const aiWait = ms => new Promise(res => setTimeout(res, ms));
 
 // ── Dossier envoyé à l'IA : tout KANGA sous forme compacte ──
 function aiCell(v) { return String(v == null ? '' : v).replace(/[;\r\n]+/g, ' ').trim(); }
@@ -1963,34 +1970,39 @@ async function aiAsk(key, messages) {
   const system = AI_SYSTEM.replace('{WHO}', getWho() || 'l\'utilisateur') + '\n\n# DONNÉES KANGA\n' + aiDossier();
   const body = JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: history });
 
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const model = await aiModel(key);
-    let r;
-    try {
-      r = await fetch(`${AI_API}/models/${model}:generateContent`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body
-      });
-    } catch (e) { throw new Error('Pas de connexion internet : l\'assistant a besoin du réseau.'); }
-    const j = await r.json().catch(() => ({}));
-    if (r.ok) {
-      const cand = (j.candidates || [])[0] || {};
-      const text = ((cand.content || {}).parts || []).filter(p => !p.thought).map(p => p.text || '').join('').trim();
-      if (!text) throw new Error('Réponse vide (' + (cand.finishReason || (j.promptFeedback || {}).blockReason || 'raison inconnue') + ').');
-      document.getElementById('aiModelInfo').textContent = model;
-      return text;
+  // Modèle saturé (503/500), quota du modèle atteint (429) ou modèle retiré (404) :
+  // on réessaie une fois après une courte pause, puis on passe au modèle suivant.
+  const models = await aiModels(key);
+  let saturated = false, quota = false, lastMsg = '';
+  for (const model of models) {
+    for (let retry = 0; retry < 2; retry++) {
+      let r;
+      try {
+        r = await fetch(`${AI_API}/models/${model}:generateContent`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body
+        });
+      } catch (e) { throw new Error('Pas de connexion internet : l\'assistant a besoin du réseau.'); }
+      const j = await r.json().catch(() => ({}));
+      if (r.ok) {
+        const cand = (j.candidates || [])[0] || {};
+        const text = ((cand.content || {}).parts || []).filter(p => !p.thought).map(p => p.text || '').join('').trim();
+        if (!text) throw new Error('Réponse vide (' + (cand.finishReason || (j.promptFeedback || {}).blockReason || 'raison inconnue') + ').');
+        try { localStorage.setItem('kanga_gemini_model', model); } catch (e) {}
+        document.getElementById('aiModelInfo').textContent = model;
+        return text;
+      }
+      lastMsg = (j.error && j.error.message) || ('HTTP ' + r.status);
+      if (r.status === 400 && /api key/i.test(lastMsg)) throw new Error('Clé invalide. Vérifiez-la dans « Clé Gemini ».');
+      if (r.status === 403) throw new Error('Clé refusée par Google : ' + lastMsg);
+      if (r.status === 503 || r.status === 500) { saturated = true; if (retry === 0) { await aiWait(1500); continue; } break; }
+      if (r.status === 429) { quota = true; break; }
+      if (r.status === 404) break;
+      throw new Error('Erreur Gemini : ' + lastMsg);
     }
-    const msg = (j.error && j.error.message) || ('HTTP ' + r.status);
-    if (r.status === 404 && attempt === 0) {   // modèle retiré : on passe au suivant
-      const next = AI_FALLBACK_MODELS.find(m => m !== model) || AI_FALLBACK_MODELS[0];
-      try { localStorage.setItem('kanga_gemini_model', next); } catch (e) {}
-      continue;
-    }
-    if (r.status === 429) throw new Error('Quota gratuit atteint pour le moment. Réessayez dans une minute, ou demain si la limite du jour est atteinte.');
-    if (r.status === 400 && /api key/i.test(msg)) throw new Error('Clé invalide. Vérifiez-la dans « Clé Gemini ».');
-    if (r.status === 403) throw new Error('Clé refusée par Google : ' + msg);
-    throw new Error('Erreur Gemini : ' + msg);
   }
-  throw new Error('Aucun modèle Gemini disponible avec cette clé.');
+  if (saturated) throw new Error('Les serveurs Gemini gratuits sont saturés en ce moment (tous les modèles essayés). Réessayez dans quelques minutes.');
+  if (quota) throw new Error('Quota gratuit atteint pour le moment. Réessayez dans une minute, ou demain si la limite du jour est atteinte.');
+  throw new Error('Aucun modèle Gemini disponible avec cette clé (' + lastMsg + ').');
 }
 
 async function aiSend(e, preset) {
