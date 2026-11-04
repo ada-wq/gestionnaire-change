@@ -787,6 +787,7 @@ function updateAll() {
   updateMonthSelector();
   renderSuivi();
   updatePageHeader();
+  if (currentTab === 'adam' && adamOpen && adamData) adamPaint();   // le solde Euro de KANGA a pu changer
   saveLocalCache();
   if (document.getElementById('dashTab').classList.contains('active')) renderDashboard();
   if (document.getElementById('analyticsTab').classList.contains('active')) renderAnalytics();
@@ -2304,8 +2305,10 @@ function adamForgetToken() {
   adamLock();
 }
 
-async function adamApi(path) {
-  const r = await fetch(ADAM_API + path, { headers: { Authorization: 'Bearer ' + adamToken() } });
+async function adamApi(path, body) {
+  const opts = { headers: { Authorization: 'Bearer ' + adamToken() } };
+  if (body) { opts.method = 'POST'; opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  const r = await fetch(ADAM_API + path, opts);
   const j = await r.json().catch(() => ({}));
   if (r.status === 401) {
     try { localStorage.removeItem('kanga_adam_token'); } catch (e) {}
@@ -2400,6 +2403,8 @@ function adamPaint() {
     </div>`;
   }).join('') : '<div class="sum-empty">Aucune banque reliée pour l\'instant : utilisez « Relier une banque » ci-dessous.</div>';
 
+  adamPaintAfter(total);
+
   const otherTxt = Object.entries(others).map(([c, v]) => adamMoney(v, c)).join(' + ');
   document.getElementById('adamTotal').textContent = fmtEuro(total);
   document.getElementById('adamSub').textContent =
@@ -2424,6 +2429,51 @@ function adamPaint() {
     </a>`;
   }).join('');
 }
+// Solde après KANGA = total de mes banques − solde Euro de KANGA − montant Youssouf
+function adamPaintAfter(banksTotal) {
+  const settings = (adamData && adamData.settings) || {};
+  const euroKanga = euroT.reduce((a, t) => a + (t.entree || 0) - (t.sortie || 0), 0);
+  const yous = Number(settings.youssouf) || 0;
+  const after = banksTotal - euroKanga - yous;
+  const out = document.getElementById('adamAfter');
+  out.textContent = fmtEuro(after);
+  out.className = 'adam-after-total ' + (after < 0 ? 'val-neg' : 'val-pos');
+  const line = (label, value, sub, sign) => `<div class="adam-calc-row">
+      <span>${label}${sub ? `<small>${sub}</small>` : ''}</span>
+      <b>${sign}${fmtEuro(Math.abs(value))}</b>
+    </div>`;
+  document.getElementById('adamCalc').innerHTML =
+    line('Total de mes banques', banksTotal, '', banksTotal < 0 ? '− ' : '') +
+    line('Solde Euro de KANGA', euroKanga, `${euroT.length} transactions Euro`, euroKanga < 0 ? '+ ' : '− ') +
+    line('Montant Youssouf', yous,
+      settings.youssoufAt ? `saisi ${adamAgo(settings.youssoufAt)}${settings.youssoufNote ? ' · ' + esc(settings.youssoufNote) : ''}` : 'à saisir ci-dessous',
+      yous < 0 ? '+ ' : '− ') +
+    `<div class="adam-calc-row total"><span>Solde après KANGA</span><b class="${after < 0 ? 'val-neg' : 'val-pos'}">${fmtEuro(after)}</b></div>`;
+  const amt = document.getElementById('adamYousAmt'), note = document.getElementById('adamYousNote');
+  if (document.activeElement !== amt && document.activeElement !== note) {
+    amt.value = settings.youssouf != null ? settings.youssouf : '';
+    note.value = settings.youssoufNote || '';
+  }
+}
+async function adamSaveYoussouf(e) {
+  e.preventDefault();
+  const raw = document.getElementById('adamYousAmt').value;
+  const v = parseFloat(raw);
+  if (raw !== '' && !isFinite(v)) { toast('Montant invalide', 'err'); return false; }
+  const btn = document.getElementById('adamYousBtn');
+  btn.disabled = true;
+  try {
+    const res = await adamApi('/settings', { youssouf: raw === '' ? 0 : v, youssoufNote: document.getElementById('adamYousNote').value.trim() });
+    if (!res.banks) { toast('Mettez à jour le code du serveur Cloudflare pour enregistrer ce montant', 'err'); return false; }
+    adamData = res;
+    document.activeElement && document.activeElement.blur();
+    adamPaint();
+    toast('Montant Youssouf enregistré', 'ok');
+  } catch (err) { if (err.message !== 'refusé') toast('Erreur : ' + err.message, 'err'); }
+  finally { btn.disabled = false; }
+  return false;
+}
+
 function adamStartUrl(name, country) {
   return `${ADAM_API}/start?aspsp=${encodeURIComponent(name)}&country=${country}&token=${encodeURIComponent(adamToken())}`;
 }

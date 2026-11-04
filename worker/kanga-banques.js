@@ -15,6 +15,7 @@
 //    GET /callback                 retour de la banque (appelé par Enable Banking)
 //    GET /balances[?refresh=1]     soldes, état des consentements, historique (jeton requis)
 //    GET /remove?key=              oublier une banque (jeton requis)
+//    POST /settings                réglages privés d'Adam, ex. montant Youssouf (jeton requis)
 // ═══════════════════════════════════════════════════════════
 
 const EB = 'https://api.enablebanking.com';
@@ -36,6 +37,19 @@ export default {
       if (url.pathname === '/start') return await start(url, env);
       if (url.pathname === '/balances') {
         if (url.searchParams.get('refresh') === '1') await refreshAll(env, psuHeaders(req), null, true);
+        return json(await publicState(env));
+      }
+      if (url.pathname === '/settings' && req.method === 'POST') {
+        const body = await req.json().catch(() => ({}));
+        const settings = (await env.BANK.get('settings', 'json')) || {};
+        if ('youssouf' in body) {
+          const v = Number(body.youssouf);
+          if (!isFinite(v)) return json({ error: 'Montant invalide' }, 400);
+          settings.youssouf = v;
+          settings.youssoufNote = String(body.youssoufNote || '').slice(0, 200);
+          settings.youssoufAt = new Date().toISOString();
+        }
+        await env.BANK.put('settings', JSON.stringify(settings));
         return json(await publicState(env));
       }
       if (url.pathname === '/remove') {
@@ -158,6 +172,7 @@ async function publicState(env) {
   const banks = (await env.BANK.get('banks', 'json')) || {};
   const state = (await env.BANK.get('state', 'json')) || { balances: {}, history: [] };
   return {
+    settings: (await env.BANK.get('settings', 'json')) || {},
     refreshedAt: state.refreshedAt || null,
     history: state.history || [],
     banks: Object.entries(banks).map(([key, b]) => ({
@@ -234,7 +249,7 @@ function backToApp(status, msg) {
 function cors(res) {
   res.headers.set('Access-Control-Allow-Origin', '*');
   res.headers.set('Access-Control-Allow-Headers', 'Authorization, Content-Type');
-  res.headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   return res;
 }
 function json(obj, status = 200) {

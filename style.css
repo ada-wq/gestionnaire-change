@@ -1091,3 +1091,18 @@ th { color:var(--brand-text); }
   .adam-banks { grid-template-columns:1fr; }
   .adam-links { grid-template-columns:1fr 1fr; }
 }
+
+/* Espace Adam : solde après KANGA */
+.adam-after .panel-head { background:linear-gradient(90deg,rgba(16,185,129,.12),transparent 70%); }
+.adam-after-total { font-size:1.4rem; font-weight:800; font-variant-numeric:tabular-nums; }
+.adam-calc { padding:6px 18px 4px; }
+.adam-calc-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:9px 0; border-bottom:1px dashed var(--border); font-size:.9rem; }
+.adam-calc-row span { display:flex; flex-direction:column; gap:1px; }
+.adam-calc-row small { font-size:.74rem; color:var(--text3); }
+.adam-calc-row b { font-variant-numeric:tabular-nums; white-space:nowrap; }
+.adam-calc-row.total { border-bottom:none; border-top:2px solid var(--border2); margin-top:4px; padding-top:12px; font-weight:700; font-size:1rem; }
+.adam-yous { display:grid; grid-template-columns:180px 1fr auto; gap:12px; align-items:end; padding:14px 18px 18px; border-top:1px solid var(--border); background:var(--surface2); }
+@media (max-width: 860px) {
+  .adam-yous { grid-template-columns:1fr; }
+  .adam-yous .btn { width:100%; }
+}

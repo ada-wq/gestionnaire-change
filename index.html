@@ -482,6 +482,19 @@
             </div>
           </div>
 
+          <div class="panel adam-after">
+            <div class="panel-head">
+              <h2>Solde après KANGA</h2>
+              <span class="adam-after-total" id="adamAfter">—</span>
+            </div>
+            <div class="adam-calc" id="adamCalc"></div>
+            <form class="adam-yous" onsubmit="return adamSaveYoussouf(event)">
+              <div class="fgroup"><label for="adamYousAmt">Montant Youssouf (€)</label><input type="number" step="0.01" id="adamYousAmt" placeholder="0,00"></div>
+              <div class="fgroup"><label for="adamYousNote">Note (facultatif)</label><input type="text" id="adamYousNote" placeholder="Ex. d'après la note du 04/11"></div>
+              <button type="submit" class="btn btn-primary" id="adamYousBtn">Enregistrer</button>
+            </form>
+          </div>
+
           <div class="adam-banks" id="adamBanks"></div>
 
           <div class="panel pad">
