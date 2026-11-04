@@ -2434,7 +2434,9 @@ function adamPaintAfter(banksTotal) {
   const settings = (adamData && adamData.settings) || {};
   const euroKanga = euroT.reduce((a, t) => a + (t.entree || 0) - (t.sortie || 0), 0);
   const yous = Number(settings.youssouf) || 0;
-  const after = banksTotal - euroKanga - yous;
+  const others = Array.isArray(settings.others) ? settings.others : [];
+  const othersNet = others.reduce((s, o) => s + (o.op === '+' ? 1 : -1) * (Number(o.amount) || 0), 0);
+  const after = banksTotal - euroKanga - yous + othersNet;
   const out = document.getElementById('adamAfter');
   out.textContent = fmtEuro(after);
   out.className = 'adam-after-total ' + (after < 0 ? 'val-neg' : 'val-pos');
@@ -2448,7 +2450,15 @@ function adamPaintAfter(banksTotal) {
     line('Montant Youssouf', yous,
       settings.youssoufAt ? `saisi ${adamAgo(settings.youssoufAt)}${settings.youssoufNote ? ' · ' + esc(settings.youssoufNote) : ''}` : 'à saisir ci-dessous',
       yous < 0 ? '+ ' : '− ') +
+    others.map(o => line(esc(o.label), Number(o.amount) || 0, 'autre montant · ' + adamAgo(o.at),
+      ((o.op === '+') === ((Number(o.amount) || 0) >= 0)) ? '+ ' : '− ')).join('') +
     `<div class="adam-calc-row total"><span>Solde après KANGA</span><b class="${after < 0 ? 'val-neg' : 'val-pos'}">${fmtEuro(after)}</b></div>`;
+  document.getElementById('adamOthers').innerHTML = others.length ? others.map(o => `<div class="adam-other">
+      <span class="badge ${o.op === '+' ? 'badge-in' : 'badge-out'}">${o.op === '+' ? 'À ajouter' : 'À retirer'}</span>
+      <span class="adam-other-label">${esc(o.label)}</span>
+      <b>${fmtEuro(Number(o.amount) || 0)}</b>
+      <button class="act-btn act-del" onclick="adamDeleteOther('${esc(o.id)}')" title="Supprimer">${svgIc('trash')}</button>
+    </div>`).join('') : '<div class="ai-mem-empty">Aucun autre montant. Ajoutez-en un ci-dessous (liquide, argent chez quelqu\'un, dette…).</div>';
   const amt = document.getElementById('adamYousAmt'), note = document.getElementById('adamYousNote');
   if (document.activeElement !== amt && document.activeElement !== note) {
     amt.value = settings.youssouf != null ? settings.youssouf : '';
@@ -2472,6 +2482,40 @@ async function adamSaveYoussouf(e) {
   } catch (err) { if (err.message !== 'refusé') toast('Erreur : ' + err.message, 'err'); }
   finally { btn.disabled = false; }
   return false;
+}
+
+// Autres montants : la liste complète est renvoyée au serveur à chaque ajout ou suppression
+async function adamSaveOthers(list, okMsg, btn) {
+  if (btn) btn.disabled = true;
+  try {
+    const res = await adamApi('/settings', { others: list });
+    if (!res.banks) { toast('Mettez à jour le code du serveur Cloudflare pour enregistrer ces montants', 'err'); return false; }
+    adamData = res;
+    adamPaint();
+    toast(okMsg, 'ok');
+    return true;
+  } catch (err) { if (err.message !== 'refusé') toast('Erreur : ' + err.message, 'err'); return false; }
+  finally { if (btn) btn.disabled = false; }
+}
+async function adamAddOther(e) {
+  e.preventDefault();
+  const label = document.getElementById('adamOtherLabel').value.trim();
+  const amount = parseFloat(document.getElementById('adamOtherAmt').value);
+  if (!label) { toast('Donnez un libellé', 'err'); return false; }
+  if (!isFinite(amount)) { toast('Montant invalide', 'err'); return false; }
+  const list = (((adamData || {}).settings || {}).others || []).slice();
+  list.push({ id: genId(), label, amount, op: document.getElementById('adamOtherOp').value, at: new Date().toISOString() });
+  if (await adamSaveOthers(list, `« ${label} » ajouté`, document.getElementById('adamOtherBtn'))) {
+    document.getElementById('adamOtherLabel').value = '';
+    document.getElementById('adamOtherAmt').value = '';
+  }
+  return false;
+}
+function adamDeleteOther(id) {
+  const list = (((adamData || {}).settings || {}).others || []);
+  const item = list.find(o => o.id === id);
+  if (!item || !confirm(`Supprimer « ${item.label} » ?`)) return;
+  adamSaveOthers(list.filter(o => o.id !== id), `« ${item.label} » supprimé`);
 }
 
 function adamStartUrl(name, country) {

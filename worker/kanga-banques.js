@@ -49,6 +49,16 @@ export default {
           settings.youssoufNote = String(body.youssoufNote || '').slice(0, 200);
           settings.youssoufAt = new Date().toISOString();
         }
+        // autres montants : liste libre { libellé, montant, à retirer (-) ou à ajouter (+) }
+        if (Array.isArray(body.others)) {
+          settings.others = body.others.slice(0, 30).map(o => ({
+            id: String(o.id || crypto.randomUUID()).slice(0, 40),
+            label: String(o.label || '').trim().slice(0, 60),
+            amount: Number(o.amount) || 0,
+            op: o.op === '+' ? '+' : '-',
+            at: o.at || new Date().toISOString()
+          })).filter(o => o.label);
+        }
         await env.BANK.put('settings', JSON.stringify(settings));
         return json(await publicState(env));
       }

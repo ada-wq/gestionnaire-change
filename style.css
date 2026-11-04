@@ -1106,3 +1106,13 @@ th { color:var(--brand-text); }
   .adam-yous { grid-template-columns:1fr; }
   .adam-yous .btn { width:100%; }
 }
+
+/* Espace Adam : autres montants */
+.adam-others-head { padding:14px 18px 6px; font-size:.72rem; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--text3); border-top:1px solid var(--border); }
+.adam-others { padding:0 18px 8px; }
+.adam-other { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px dashed var(--border); font-size:.88rem; }
+.adam-other:last-child { border-bottom:none; }
+.adam-other-label { flex:1; min-width:0; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.adam-other b { font-variant-numeric:tabular-nums; white-space:nowrap; }
+.adam-other-form { grid-template-columns:1fr 150px 140px auto; }
+@media (max-width: 860px) { .adam-other-form { grid-template-columns:1fr 1fr; } .adam-other-form .fgroup:first-child, .adam-other-form .btn { grid-column:1 / -1; } }
