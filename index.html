@@ -55,6 +55,8 @@
   <symbol id="i-down" viewBox="0 0 24 24"><path d="m3 7 6 6 4-4 8 8"/><path d="M15 17h6v-6"/></symbol>
   <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
   <symbol id="i-pie" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9h-9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.7 10.7 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6C3.9 8.4 2 12 2 12s3.5 7 10 7c1.8 0 3.4-.5 4.8-1.3"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol>
   <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></symbol>
   <symbol id="i-send" viewBox="0 0 24 24"><path d="M4 12 20 4l-6 16-3-7z"/><path d="m11 13 9-9"/></symbol>
   <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3M15 8l2 2"/></symbol>
@@ -471,44 +473,53 @@
 
         <div id="adamContent" style="display:none;">
           <div class="adam-hero">
-            <div>
-              <div class="adam-hero-label">Total de mes banques</div>
-              <div class="adam-hero-total" id="adamTotal">—</div>
+            <div class="adam-hero-main">
+              <div class="adam-hero-label">Solde après KANGA</div>
+              <div class="adam-hero-total adam-money" id="adamAfter">—</div>
               <div class="adam-hero-sub" id="adamSub">—</div>
+            </div>
+            <div class="adam-hero-side">
+              <div class="adam-mini"><span>Total de mes banques</span><b class="adam-money" id="adamTotal">—</b><small id="adamDelta"></small></div>
+              <div class="adam-mini"><span>Solde Euro de KANGA</span><b class="adam-money" id="adamEuroKanga">—</b><small id="adamEuroCount"></small></div>
             </div>
             <div class="adam-hero-actions">
               <button class="btn" id="adamRefreshBtn" onclick="adamLoad(true)"><svg class="ic"><use href="#i-restore"/></svg>Actualiser</button>
+              <button class="btn" id="adamHideBtn" onclick="adamToggleHide()" title="Masquer / afficher les montants"><svg class="ic"><use href="#i-eye"/></svg><span>Masquer</span></button>
               <button class="btn" onclick="adamLock()"><svg class="ic"><use href="#i-lock"/></svg>Verrouiller</button>
             </div>
           </div>
 
-          <div class="panel adam-after">
-            <div class="panel-head">
-              <h2>Solde après KANGA</h2>
-              <span class="adam-after-total" id="adamAfter">—</span>
+          <div id="adamNotice"></div>
+
+          <div class="adam-grid">
+            <div class="panel adam-after">
+              <div class="panel-head"><h2>Calcul du solde après KANGA</h2></div>
+              <div class="adam-calc" id="adamCalc"></div>
+              <div class="adam-others-head">Autres montants <small>(Youssouf, liquide, argent chez quelqu'un, dette…)</small></div>
+              <div class="adam-others" id="adamOthers"></div>
+              <form class="adam-yous adam-other-form" onsubmit="return adamAddOther(event)">
+                <div class="fgroup"><label for="adamOtherLabel">Libellé</label><input type="text" id="adamOtherLabel" placeholder="Ex. Youssouf, liquide…" maxlength="60"></div>
+                <div class="fgroup"><label for="adamOtherAmt">Montant (€)</label><input type="number" step="0.01" id="adamOtherAmt" placeholder="0,00"></div>
+                <div class="fgroup"><label for="adamOtherOp">Effet</label>
+                  <select id="adamOtherOp"><option value="-">À retirer</option><option value="+">À ajouter</option></select>
+                </div>
+                <div class="adam-form-btns">
+                  <button type="submit" class="btn btn-primary" id="adamOtherBtn"><svg class="ic"><use href="#i-plus"/></svg><span>Ajouter</span></button>
+                  <button type="button" class="btn btn-ghost" id="adamOtherCancel" onclick="adamCancelEdit()" style="display:none;">Annuler</button>
+                </div>
+              </form>
             </div>
-            <div class="adam-calc" id="adamCalc"></div>
-            <form class="adam-yous" onsubmit="return adamSaveYoussouf(event)">
-              <div class="fgroup"><label for="adamYousAmt">Montant Youssouf (€)</label><input type="number" step="0.01" id="adamYousAmt" placeholder="0,00"></div>
-              <div class="fgroup"><label for="adamYousNote">Note (facultatif)</label><input type="text" id="adamYousNote" placeholder="Ex. d'après la note du 04/11"></div>
-              <button type="submit" class="btn btn-primary" id="adamYousBtn">Enregistrer</button>
-            </form>
-            <div class="adam-others-head">Autres montants</div>
-            <div class="adam-others" id="adamOthers"></div>
-            <form class="adam-yous adam-other-form" onsubmit="return adamAddOther(event)">
-              <div class="fgroup"><label for="adamOtherLabel">Libellé</label><input type="text" id="adamOtherLabel" placeholder="Ex. liquide, chez Abbas, dette…" maxlength="60"></div>
-              <div class="fgroup"><label for="adamOtherAmt">Montant (€)</label><input type="number" step="0.01" id="adamOtherAmt" placeholder="0,00"></div>
-              <div class="fgroup"><label for="adamOtherOp">Effet</label>
-                <select id="adamOtherOp"><option value="-">À retirer</option><option value="+">À ajouter</option></select>
-              </div>
-              <button type="submit" class="btn btn-primary" id="adamOtherBtn"><svg class="ic"><use href="#i-plus"/></svg>Ajouter</button>
-            </form>
+            <div class="panel pad">
+              <div class="panel-title">Répartition par banque</div>
+              <div class="donut-wrap" id="adamDonut"></div>
+            </div>
           </div>
 
+          <div class="section-head"><h2>Mes comptes</h2></div>
           <div class="adam-banks" id="adamBanks"></div>
 
           <div class="panel pad">
-            <div class="panel-title">Évolution du total</div>
+            <div class="panel-title">Évolution du total de mes banques</div>
             <div class="a-chart" id="adamChart"></div>
           </div>
 

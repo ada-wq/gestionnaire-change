@@ -2241,7 +2241,7 @@ function aiDeleteMemory(id) { db.ref('assistant/memory/' + id).remove().catch(()
 
 // ════════════════════════════════════════════
 //  ESPACE ADAM — soldes bancaires (serveur Cloudflare + Enable Banking)
-//  Deux verrous : le code à 4 chiffres (sur l'appareil) et le mot de passe du serveur
+//  Deux verrous : le code à 4 chiffres (retenu 1 h sur l'appareil) et le mot de passe du serveur
 //  (ADAM_TOKEN, saisi une fois par appareil, jamais dans le code). Seul le serveur détient
 //  la clé Enable Banking ; les soldes ne passent pas par Firebase ni par l'assistant IA.
 // ════════════════════════════════════════════
@@ -2256,31 +2256,34 @@ const ADAM_BANKS = [
 ];
 const ADAM_TYPES = { ITAV: 'disponible', CLAV: 'disponible', OPAV: 'disponible', XPCD: 'prévisionnel', ITBD: 'comptable',
   CLBD: 'comptable', OPBD: 'comptable', PRCD: 'veille', VALU: 'valeur', FWAV: 'à venir', OTHR: 'autre', INFO: 'info' };
-let adamOpen = false, adamData = null, adamLoadedAt = 0;
-// Déverrouillage retenu 1 heure sur l'appareil (prolongé à chaque utilisation) : pas de code à chaque actualisation
-const ADAM_UNLOCK_MS = 60 * 60 * 1000;
-function adamUntil() { try { return Number(localStorage.getItem('kanga_adam_until')) || 0; } catch (e) { return 0; } }
-function adamTouch() { try { localStorage.setItem('kanga_adam_until', String(Date.now() + ADAM_UNLOCK_MS)); } catch (e) {} }
+const ADAM_UNLOCK_MS = 60 * 60 * 1000;        // déverrouillage retenu 1 h (prolongé à chaque utilisation)
+const ADAM_STALE_MS  = 60 * 60 * 1000;        // soldes de plus d'1 h : relus automatiquement à l'ouverture
+let adamOpen = false, adamData = null, adamLoadedAt = 0, adamEditing = null, adamPendingTimer = null;
 
 function adamHash(s) { let h = 0x811c9dc5; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16); }
-function adamToken() { try { return localStorage.getItem('kanga_adam_token') || ''; } catch (e) { return ''; } }
+function adamStore(k, v) { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
+function adamRead(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
+function adamToken() { return adamRead('kanga_adam_token'); }
+function adamUntil() { return Number(adamRead('kanga_adam_until')) || 0; }
+function adamTouch() { adamStore('kanga_adam_until', String(Date.now() + ADAM_UNLOCK_MS)); }
 function adamNavUpdate() {
   const show = getWho() === 'Adam';
   document.querySelectorAll('.adam-only').forEach(el => { el.style.display = show ? '' : 'none'; });
   if (!show) { adamLock(true); if (currentTab === 'adam') switchTab('suivi'); }
 }
 
+// ── Verrou ──
 function adamRender() {
   if (!adamOpen && adamToken() && adamUntil() > Date.now()) adamOpen = true;   // déverrouillé il y a moins d'1 h
   if (adamOpen) adamTouch();
   document.getElementById('adamLock').style.display = adamOpen ? 'none' : '';
   document.getElementById('adamContent').style.display = adamOpen ? '' : 'none';
   document.getElementById('adamTokenRow').style.display = adamToken() ? 'none' : '';
+  adamApplyHide();
   if (adamOpen) {
     adamPaint();
-    if (!adamData || Date.now() - adamLoadedAt > 5 * 60 * 1000) adamLoad(false);   // données de plus de 5 min : on recharge
-  }
-  else setTimeout(() => document.getElementById('adamPin').focus(), 80);
+    if (!adamData || Date.now() - adamLoadedAt > 5 * 60 * 1000) adamLoad(false);
+  } else setTimeout(() => document.getElementById('adamPin').focus(), 80);
 }
 function adamUnlock(e) {
   e.preventDefault();
@@ -2292,7 +2295,7 @@ function adamUnlock(e) {
   if (!adamToken()) {
     const t = document.getElementById('adamTokenInput').value.trim();
     if (!t) { err.textContent = 'Entrez le mot de passe du serveur bancaire.'; return false; }
-    try { localStorage.setItem('kanga_adam_token', t); } catch (x) {}
+    adamStore('kanga_adam_token', t);
     document.getElementById('adamTokenInput').value = '';
   }
   err.textContent = ''; pinEl.value = '';
@@ -2303,24 +2306,35 @@ function adamUnlock(e) {
 }
 function adamLock(silent) {
   adamOpen = false; adamData = null;
-  try { localStorage.removeItem('kanga_adam_until'); } catch (e) {}
-  document.getElementById('adamBanks').innerHTML = '';
-  document.getElementById('adamTotal').textContent = '—';
+  adamStore('kanga_adam_until', null);
+  clearTimeout(adamPendingTimer);
+  ['adamBanks', 'adamCalc', 'adamOthers', 'adamDonut', 'adamNotice'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
+  ['adamTotal', 'adamAfter'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '—'; });
   if (!silent) adamRender();
 }
 function adamForgetToken() {
   if (!confirm('Oublier le mot de passe du serveur bancaire sur cet appareil ?')) return;
-  try { localStorage.removeItem('kanga_adam_token'); } catch (e) {}
+  adamStore('kanga_adam_token', null);
   adamLock();
 }
 
+// ── Masquer les montants (utile en public), retenu sur l'appareil ──
+function adamToggleHide() { adamStore('kanga_adam_hide', adamRead('kanga_adam_hide') === '1' ? null : '1'); adamApplyHide(); }
+function adamApplyHide() {
+  const hidden = adamRead('kanga_adam_hide') === '1';
+  document.getElementById('adamContent').classList.toggle('adam-hidden', hidden);
+  const btn = document.getElementById('adamHideBtn');
+  if (btn) btn.innerHTML = svgIc(hidden ? 'eye-off' : 'eye') + `<span>${hidden ? 'Afficher' : 'Masquer'}</span>`;
+}
+
+// ── Échanges avec le serveur ──
 async function adamApi(path, body) {
   const opts = { headers: { Authorization: 'Bearer ' + adamToken() } };
   if (body) { opts.method = 'POST'; opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
   const r = await fetch(ADAM_API + path, opts);
   const j = await r.json().catch(() => ({}));
   if (r.status === 401) {
-    try { localStorage.removeItem('kanga_adam_token'); } catch (e) {}
+    adamStore('kanga_adam_token', null);
     adamLock();
     document.getElementById('adamLockError').textContent = 'Mot de passe du serveur incorrect : saisissez-le à nouveau.';
     throw new Error('refusé');
@@ -2336,10 +2350,27 @@ async function adamLoad(refresh) {
   try {
     adamData = await adamApi('/balances' + (refresh ? '?refresh=1' : ''));
     adamLoadedAt = Date.now();
+    await adamMigrateYoussouf();
     adamPaint();
+    // soldes trop anciens (plus d'1 h) : relecture des banques, comme une ouverture d'appli bancaire
+    if (!refresh && (!adamData.refreshedAt || Date.now() - Date.parse(adamData.refreshedAt) > ADAM_STALE_MS) && adamData.banks.length) {
+      btn.disabled = false;
+      return adamLoad(true);
+    }
   } catch (e) {
     if (e.message !== 'refusé') document.getElementById('adamSub').textContent = 'Serveur bancaire injoignable : ' + e.message;
   } finally { btn.disabled = false; }
+}
+// L'ancien champ « Montant Youssouf » devient un autre montant comme les autres (une seule fois)
+async function adamMigrateYoussouf() {
+  const s = (adamData && adamData.settings) || {};
+  const v = Number(s.youssouf) || 0;
+  if (!v) return;
+  const others = (s.others || []).slice();
+  if (!others.some(o => /youssouf/i.test(o.label))) {
+    others.unshift({ id: genId(), label: 'Youssouf' + (s.youssoufNote ? ' (' + s.youssoufNote + ')' : ''), amount: v, op: '-', at: s.youssoufAt || new Date().toISOString() });
+  }
+  try { adamData = await adamApi('/settings', { others, youssouf: 0, youssoufNote: '' }); } catch (e) {}
 }
 async function adamRemove(key, name) {
   if (!confirm(`Retirer ${name} de l'Espace Adam ?`)) return;
@@ -2347,6 +2378,7 @@ async function adamRemove(key, name) {
   catch (e) { if (e.message !== 'refusé') toast('Erreur : ' + e.message, 'err'); }
 }
 
+// ── Outils d'affichage ──
 // € direct, FCFA au taux de référence ; les autres devises ne sont pas converties
 function adamToEur(amount, cur) {
   if (cur === 'EUR') return amount;
@@ -2366,13 +2398,17 @@ function adamMoney(amount, cur) {
   if (cur === 'XOF' || cur === 'XAF') return fmtCFA(amount);
   return amount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + cur;
 }
+function adamHistTotal(h) {
+  return Object.entries(h.byCur || {}).reduce((s, [c, v]) => { const e = adamToEur(v, c); return s + (e === null ? 0 : e); }, 0);
+}
 
+// ── Affichage complet ──
 function adamPaint() {
   const d = adamData;
   if (!d) return;
   let total = 0, nAcc = 0;
-  const others = {};
-  const style = name => (ADAM_BANKS.find(b => b.name === name) || {}).color || '#7c3aed';
+  const others = {}, perBank = [];
+  const colorOf = name => (ADAM_BANKS.find(b => b.name === name) || {}).color || '#7c3aed';
 
   document.getElementById('adamBanks').innerHTML = d.banks.length ? d.banks.map(b => {
     let bankEur = 0;
@@ -2390,9 +2426,10 @@ function adamPaint() {
           <small>${esc(a.iban || a.currency)}${a.type ? ' · ' + (ADAM_TYPES[a.type] || a.type) : ''}${a.at ? ' · ' + adamAgo(a.at) : ''}</small>
           ${a.error ? `<small class="adam-err">${svgIc('alert')}${esc(a.error)}</small>` : ''}
         </div>
-        <span class="adam-acc-amt ${has && a.amount < 0 ? 'val-neg' : ''}">${has ? adamMoney(a.amount, a.currency) : '—'}</span>
+        <span class="adam-acc-amt adam-money ${has && a.amount < 0 ? 'val-neg' : ''}">${has ? adamMoney(a.amount, a.currency) : '—'}</span>
       </div>`;
     }).join('');
+    perBank.push({ name: b.name, value: bankEur });
     const daysLeft = b.valid_until ? Math.floor((Date.parse(b.valid_until) - Date.now()) / 864e5) : null;
     const consent = daysLeft === null ? '' : daysLeft < 0
       ? `<span class="badge badge-suivi-late">Accès expiré</span>`
@@ -2401,109 +2438,82 @@ function adamPaint() {
         : `<span class="adam-valid">Accès jusqu'au ${new Date(b.valid_until).toLocaleDateString('fr-FR')}</span>`;
     return `<div class="adam-bank">
       <div class="adam-bank-head">
-        <span class="adam-logo" style="background:${style(b.name)}">${esc(b.name.charAt(0))}</span>
+        <span class="adam-logo" style="background:${colorOf(b.name)}">${esc(b.name.charAt(0))}</span>
         <div class="adam-bank-title"><b>${esc(b.name)}</b>${consent}</div>
-        <span class="adam-bank-total">${fmtEuro(bankEur)}</span>
+        <span class="adam-bank-total adam-money ${bankEur < 0 ? 'val-neg' : ''}">${fmtEuro(bankEur)}</span>
       </div>
       ${rows || '<div class="a-empty">Aucun compte renvoyé par la banque.</div>'}
       <div class="adam-bank-foot">
-        <a class="btn btn-sm" href="${adamStartUrl(b.name, b.country)}">${svgIc('restore')}Renouveler l'accès</a>
+        <a class="btn btn-sm" href="${adamStartUrl(b.name, b.country)}" onclick="adamMarkPending('${esc(b.name)}')">${svgIc('restore')}Renouveler l'accès</a>
         <button class="btn btn-sm btn-ghost" onclick="adamRemove('${esc(b.key)}', '${esc(b.name)}')">Retirer</button>
       </div>
     </div>`;
   }).join('') : '<div class="sum-empty">Aucune banque reliée pour l\'instant : utilisez « Relier une banque » ci-dessous.</div>';
 
-  adamPaintAfter(total);
+  const euroKanga = euroT.reduce((a, t) => a + (t.entree || 0) - (t.sortie || 0), 0);
+  const after = adamPaintAfter(total, euroKanga);
 
-  const otherTxt = Object.entries(others).map(([c, v]) => adamMoney(v, c)).join(' + ');
+  // chiffres du haut
+  document.getElementById('adamAfter').textContent = fmtEuro(after);
+  document.getElementById('adamAfter').classList.toggle('neg', after < 0);
   document.getElementById('adamTotal').textContent = fmtEuro(total);
+  document.getElementById('adamEuroKanga').textContent = fmtEuro(euroKanga);
+  document.getElementById('adamEuroCount').textContent = `${euroT.length} transactions Euro`;
+  const hist = d.history || [];
+  const prev = hist.length >= 2 ? adamHistTotal(hist[hist.length - 2]) : null;
+  const delta = prev === null ? null : total - prev;
+  document.getElementById('adamDelta').innerHTML = delta === null ? 'évolution visible dès demain'
+    : `<span class="${delta >= 0 ? 'up' : 'down'}">${delta >= 0 ? '▲ +' : '▼ '}${fmtEuro(delta)}</span> depuis le ${new Date(hist[hist.length - 2].d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}`;
+  const otherTxt = Object.entries(others).map(([c, v]) => adamMoney(v, c)).join(' + ');
   document.getElementById('adamSub').textContent =
-    `${d.banks.length} banque${d.banks.length > 1 ? 's' : ''} · ${nAcc} compte${nAcc > 1 ? 's' : ''} · mis à jour ${adamAgo(d.refreshedAt)}` +
+    `${d.banks.length} banque${d.banks.length > 1 ? 's' : ''} · ${nAcc} compte${nAcc > 1 ? 's' : ''} · relevé ${adamAgo(d.refreshedAt)}` +
     (otherTxt ? ` · en plus : ${otherTxt} (non converti)` : '');
 
+  // répartition par banque (soldes positifs)
+  const pos = perBank.filter(p => p.value > 0);
+  document.getElementById('adamDonut').innerHTML = pos.length ? donutSVG(
+    pos.map(p => ({ label: p.name, value: p.value, color: colorOf(p.name), text: fmtEuro(p.value) })),
+    fmtEuro(pos.reduce((s, p) => s + p.value, 0)).replace(' €', '€'), 'soldes positifs')
+    + (perBank.some(p => p.value < 0) ? `<div class="adam-neg-note">Comptes à découvert non inclus : ${perBank.filter(p => p.value < 0).map(p => esc(p.name) + ' ' + fmtEuro(p.value)).join(', ')}</div>` : '')
+    : '<div class="a-empty">Aucun solde positif à répartir.</div>';
+
   // courbe : un point par jour, total converti en €
-  const pts = (d.history || []).map(h => ({
-    d: h.d,
-    v: Object.entries(h.byCur || {}).reduce((s, [c, v]) => { const e = adamToEur(v, c); return s + (e === null ? 0 : e); }, 0)
-  }));
+  const pts = hist.map(h => ({ d: h.d, v: adamHistTotal(h) }));
   const chart = document.getElementById('adamChart');
   if (pts.length >= 2) aChartBalance(chart, pts, fmtEuro);
   else chart.innerHTML = '<div class="a-empty">La courbe se remplira jour après jour, à chaque relevé automatique.</div>';
 
-  // dernière tentative de liaison (affichée 2 jours) : succès, ou erreur détaillée renvoyée par la banque
-  const ll = d.lastLink;
-  document.getElementById('adamLinkInfo').innerHTML = ll && Date.now() - Date.parse(ll.at) < 2 * 864e5
-    ? `<div class="adam-linkinfo ${ll.ok && !ll.warning ? 'ok' : 'ko'}">
-        <b>Dernière liaison — ${esc(ll.aspsp)} · ${adamAgo(ll.at)}</b>
-        <span>${ll.ok ? (ll.warning ? esc(ll.warning) : `Réussie : ${ll.accounts} compte${ll.accounts > 1 ? 's' : ''} relié${ll.accounts > 1 ? 's' : ''}.`)
-          : `Échec (étape : ${esc(ll.step || '?')}) : ${esc(ll.error || 'erreur inconnue')}`}</span>
-      </div>` : '';
-
-  document.getElementById('adamLinks').innerHTML = ADAM_BANKS.map(bk => {
-    const linked = d.banks.some(b => b.name === bk.name);
-    return `<a class="adam-link ${linked ? 'done' : ''}" href="${adamStartUrl(bk.name, bk.country)}">
-      <span class="adam-logo sm" style="background:${bk.color}">${esc(bk.name.charAt(0))}</span>
-      <span>${esc(bk.name)}</span>
-      <small>${linked ? 'reliée · renouveler' : 'relier'}</small>
-    </a>`;
-  }).join('');
+  adamPaintNotice();
+  adamPaintLinks();
 }
-// Solde après KANGA = total de mes banques − solde Euro de KANGA − montant Youssouf
-function adamPaintAfter(banksTotal) {
+
+// Solde après KANGA = total de mes banques − solde Euro de KANGA ± autres montants
+function adamPaintAfter(banksTotal, euroKanga) {
   const settings = (adamData && adamData.settings) || {};
-  const euroKanga = euroT.reduce((a, t) => a + (t.entree || 0) - (t.sortie || 0), 0);
-  const yous = Number(settings.youssouf) || 0;
   const others = Array.isArray(settings.others) ? settings.others : [];
-  const othersNet = others.reduce((s, o) => s + (o.op === '+' ? 1 : -1) * (Number(o.amount) || 0), 0);
-  const after = banksTotal - euroKanga - yous + othersNet;
-  const out = document.getElementById('adamAfter');
-  out.textContent = fmtEuro(after);
-  out.className = 'adam-after-total ' + (after < 0 ? 'val-neg' : 'val-pos');
-  const line = (label, value, sub, sign) => `<div class="adam-calc-row">
+  const sign = o => (o.op === '+' ? 1 : -1) * (Number(o.amount) || 0);
+  const after = banksTotal - euroKanga + others.reduce((s, o) => s + sign(o), 0);
+  const line = (label, value, sub) => `<div class="adam-calc-row">
       <span>${label}${sub ? `<small>${sub}</small>` : ''}</span>
-      <b>${sign}${fmtEuro(Math.abs(value))}</b>
+      <b class="adam-money ${value < 0 ? 'val-neg' : ''}">${value < 0 ? '− ' : '+ '}${fmtEuro(Math.abs(value))}</b>
     </div>`;
   document.getElementById('adamCalc').innerHTML =
-    line('Total de mes banques', banksTotal, '', banksTotal < 0 ? '− ' : '') +
-    line('Solde Euro de KANGA', euroKanga, `${euroT.length} transactions Euro`, euroKanga < 0 ? '+ ' : '− ') +
-    line('Montant Youssouf', yous,
-      settings.youssoufAt ? `saisi ${adamAgo(settings.youssoufAt)}${settings.youssoufNote ? ' · ' + esc(settings.youssoufNote) : ''}` : 'à saisir ci-dessous',
-      yous < 0 ? '+ ' : '− ') +
-    others.map(o => line(esc(o.label), Number(o.amount) || 0, 'autre montant · ' + adamAgo(o.at),
-      ((o.op === '+') === ((Number(o.amount) || 0) >= 0)) ? '+ ' : '− ')).join('') +
-    `<div class="adam-calc-row total"><span>Solde après KANGA</span><b class="${after < 0 ? 'val-neg' : 'val-pos'}">${fmtEuro(after)}</b></div>`;
-  document.getElementById('adamOthers').innerHTML = others.length ? others.map(o => `<div class="adam-other">
+    line('Total de mes banques', banksTotal, '') +
+    line('Solde Euro de KANGA', -euroKanga, `${euroT.length} transactions Euro`) +
+    others.map(o => line(esc(o.label), sign(o), 'autre montant · ' + adamAgo(o.at))).join('') +
+    `<div class="adam-calc-row total"><span>Solde après KANGA</span><b class="adam-money ${after < 0 ? 'val-neg' : 'val-pos'}">${fmtEuro(after)}</b></div>`;
+
+  document.getElementById('adamOthers').innerHTML = others.length ? others.map(o => `<div class="adam-other${adamEditing === o.id ? ' editing' : ''}">
       <span class="badge ${o.op === '+' ? 'badge-in' : 'badge-out'}">${o.op === '+' ? 'À ajouter' : 'À retirer'}</span>
       <span class="adam-other-label">${esc(o.label)}</span>
-      <b>${fmtEuro(Number(o.amount) || 0)}</b>
+      <b class="adam-money">${fmtEuro(Number(o.amount) || 0)}</b>
+      <button class="act-btn" onclick="adamEditOther('${esc(o.id)}')" title="Modifier">${svgIc('edit')}</button>
       <button class="act-btn act-del" onclick="adamDeleteOther('${esc(o.id)}')" title="Supprimer">${svgIc('trash')}</button>
-    </div>`).join('') : '<div class="ai-mem-empty">Aucun autre montant. Ajoutez-en un ci-dessous (liquide, argent chez quelqu\'un, dette…).</div>';
-  const amt = document.getElementById('adamYousAmt'), note = document.getElementById('adamYousNote');
-  if (document.activeElement !== amt && document.activeElement !== note) {
-    amt.value = settings.youssouf != null ? settings.youssouf : '';
-    note.value = settings.youssoufNote || '';
-  }
-}
-async function adamSaveYoussouf(e) {
-  e.preventDefault();
-  const raw = document.getElementById('adamYousAmt').value;
-  const v = parseFloat(raw);
-  if (raw !== '' && !isFinite(v)) { toast('Montant invalide', 'err'); return false; }
-  const btn = document.getElementById('adamYousBtn');
-  btn.disabled = true;
-  try {
-    const res = await adamApi('/settings', { youssouf: raw === '' ? 0 : v, youssoufNote: document.getElementById('adamYousNote').value.trim() });
-    if (!res.banks) { toast('Mettez à jour le code du serveur Cloudflare pour enregistrer ce montant', 'err'); return false; }
-    adamData = res;
-    document.activeElement && document.activeElement.blur();
-    adamPaint();
-    toast('Montant Youssouf enregistré', 'ok');
-  } catch (err) { if (err.message !== 'refusé') toast('Erreur : ' + err.message, 'err'); }
-  finally { btn.disabled = false; }
-  return false;
+    </div>`).join('') : '<div class="ai-mem-empty">Aucun autre montant. Ajoutez-en un ci-dessous : Youssouf, liquide, argent chez quelqu\'un, dette…</div>';
+  return after;
 }
 
-// Autres montants : la liste complète est renvoyée au serveur à chaque ajout ou suppression
+// ── Autres montants : ajout, modification, suppression (liste renvoyée au serveur à chaque fois) ──
 async function adamSaveOthers(list, okMsg, btn) {
   if (btn) btn.disabled = true;
   try {
@@ -2520,23 +2530,80 @@ async function adamAddOther(e) {
   e.preventDefault();
   const label = document.getElementById('adamOtherLabel').value.trim();
   const amount = parseFloat(document.getElementById('adamOtherAmt').value);
+  const op = document.getElementById('adamOtherOp').value;
   if (!label) { toast('Donnez un libellé', 'err'); return false; }
   if (!isFinite(amount)) { toast('Montant invalide', 'err'); return false; }
-  const list = (((adamData || {}).settings || {}).others || []).slice();
-  list.push({ id: genId(), label, amount, op: document.getElementById('adamOtherOp').value, at: new Date().toISOString() });
-  if (await adamSaveOthers(list, `« ${label} » ajouté`, document.getElementById('adamOtherBtn'))) {
-    document.getElementById('adamOtherLabel').value = '';
-    document.getElementById('adamOtherAmt').value = '';
-  }
+  let list = (((adamData || {}).settings || {}).others || []).slice();
+  const editing = adamEditing && list.some(o => o.id === adamEditing);
+  if (editing) list = list.map(o => o.id === adamEditing ? { ...o, label, amount, op, at: new Date().toISOString() } : o);
+  else list.push({ id: genId(), label, amount, op, at: new Date().toISOString() });
+  if (await adamSaveOthers(list, editing ? `« ${label} » mis à jour` : `« ${label} » ajouté`, document.getElementById('adamOtherBtn'))) adamCancelEdit();
   return false;
 }
+function adamEditOther(id) {
+  const o = ((((adamData || {}).settings || {}).others) || []).find(x => x.id === id);
+  if (!o) return;
+  adamEditing = id;
+  document.getElementById('adamOtherLabel').value = o.label;
+  document.getElementById('adamOtherAmt').value = o.amount;
+  document.getElementById('adamOtherOp').value = o.op === '+' ? '+' : '-';
+  document.querySelector('#adamOtherBtn span').textContent = 'Mettre à jour';
+  document.getElementById('adamOtherCancel').style.display = '';
+  adamPaint();
+  document.getElementById('adamOtherAmt').focus();
+}
+function adamCancelEdit() {
+  adamEditing = null;
+  document.getElementById('adamOtherLabel').value = '';
+  document.getElementById('adamOtherAmt').value = '';
+  document.getElementById('adamOtherOp').value = '-';
+  document.querySelector('#adamOtherBtn span').textContent = 'Ajouter';
+  document.getElementById('adamOtherCancel').style.display = 'none';
+  if (adamData) adamPaint();
+}
 function adamDeleteOther(id) {
-  const list = (((adamData || {}).settings || {}).others || []);
+  const list = ((((adamData || {}).settings || {}).others) || []);
   const item = list.find(o => o.id === id);
   if (!item || !confirm(`Supprimer « ${item.label} » ?`)) return;
+  if (adamEditing === id) adamCancelEdit();
   adamSaveOthers(list.filter(o => o.id !== id), `« ${item.label} » supprimé`);
 }
 
+// ── Messages : liaison en cours d'enregistrement, accès bientôt expirés ──
+function adamMarkPending(name) { try { sessionStorage.setItem('kanga_adam_pending', JSON.stringify({ name, at: Date.now() })); } catch (e) {} }
+function adamPaintNotice() {
+  const d = adamData, msgs = [];
+  let pending = null;
+  try { pending = JSON.parse(sessionStorage.getItem('kanga_adam_pending') || 'null'); } catch (e) {}
+  clearTimeout(adamPendingTimer);
+  if (pending) {
+    const linkedAfter = d.banks.some(b => b.name === pending.name && Date.parse(b.linkedAt) >= pending.at - 60000);
+    if (linkedAfter || Date.now() - pending.at > 3 * 60 * 1000) { try { sessionStorage.removeItem('kanga_adam_pending'); } catch (e) {} }
+    else {
+      msgs.push(`<div class="adam-notice info">${svgIc('restore')}<span>Liaison de <b>${esc(pending.name)}</b> en cours d'enregistrement : elle apparaît en général en moins d'une minute. Actualisation automatique…</span></div>`);
+      adamPendingTimer = setTimeout(() => adamLoad(false), 20000);
+    }
+  }
+  const expiring = d.banks.filter(b => b.valid_until && Date.parse(b.valid_until) - Date.now() < 15 * 864e5);
+  if (expiring.length) msgs.push(`<div class="adam-notice warn">${svgIc('alert')}<span>Accès à renouveler bientôt : ${expiring.map(b => `<b>${esc(b.name)}</b> (${new Date(b.valid_until).toLocaleDateString('fr-FR')})`).join(', ')}. Cliquez sur « Renouveler l'accès » sur la carte de la banque.</span></div>`);
+  document.getElementById('adamNotice').innerHTML = msgs.join('');
+}
+function adamPaintLinks() {
+  const d = adamData;
+  const ll = d.lastLink;
+  document.getElementById('adamLinkInfo').innerHTML = ll && !ll.ok && Date.now() - Date.parse(ll.at) < 2 * 864e5
+    ? `<div class="adam-linkinfo ko"><b>Dernière liaison — ${esc(ll.aspsp)} · ${adamAgo(ll.at)}</b>
+        <span>Échec (étape : ${esc(ll.step || '?')}) : ${esc(ll.error || 'erreur inconnue')}</span></div>`
+    : '';
+  document.getElementById('adamLinks').innerHTML = ADAM_BANKS.map(bk => {
+    const linked = d.banks.some(b => b.name === bk.name);
+    return `<a class="adam-link ${linked ? 'done' : ''}" href="${adamStartUrl(bk.name, bk.country)}" onclick="adamMarkPending('${esc(bk.name)}')">
+      <span class="adam-logo sm" style="background:${bk.color}">${esc(bk.name.charAt(0))}</span>
+      <span class="adam-link-name">${esc(bk.name)}</span>
+      <small>${linked ? 'Reliée · renouveler' : 'Relier'}</small>
+    </a>`;
+  }).join('');
+}
 function adamStartUrl(name, country) {
   return `${ADAM_API}/start?aspsp=${encodeURIComponent(name)}&country=${country}&token=${encodeURIComponent(adamToken())}`;
 }
@@ -2547,9 +2614,11 @@ function adamHandleReturn() {
   const params = new URLSearchParams(location.hash.split('?')[1] || '');
   history.replaceState(null, '', location.pathname + location.search);
   if (getWho() !== 'Adam') setWho('Adam');
+  if (params.get('bank') === 'ok') {
+    adamMarkPending(params.get('msg') || '');
+    toast((params.get('msg') || 'Banque') + ' reliée', 'ok');
+  } else toast('Liaison impossible : ' + (params.get('msg') || 'erreur inconnue'), 'err');
   switchTab('adam');
-  if (params.get('bank') === 'ok') toast((params.get('msg') || 'Banque') + ' reliée', 'ok');
-  else toast('Liaison impossible : ' + (params.get('msg') || 'erreur inconnue'), 'err');
 }
 
 // Analyses : redessiner les graphiques à la nouvelle largeur (rotation du téléphone, fenêtre redimensionnée)
