@@ -2246,7 +2246,7 @@ function aiDeleteMemory(id) { db.ref('assistant/memory/' + id).remove().catch(()
 //  la clé Enable Banking ; les soldes ne passent pas par Firebase ni par l'assistant IA.
 // ════════════════════════════════════════════
 const ADAM_API = 'https://kanga-banques.adammhtazibert-40c.workers.dev';
-const ADAM_PIN_HASH = 'e9b454a7';   // empreinte du code, pas le code lui-même
+const ADAM_PIN_HASH = '44855208';   // empreinte du code, pas le code lui-même
 const ADAM_BANKS = [
   { name: 'BNP Paribas',       country: 'FR', color: '#00915a' },
   { name: 'Société Générale',  country: 'FR', color: '#e9041e' },
