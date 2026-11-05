@@ -22,7 +22,7 @@ const EB = 'https://api.enablebanking.com';
 const APP_URL = 'https://ada-wq.github.io/gestionnaire-change/';
 // type de solde préféré : disponible d'abord, comptable ensuite
 const BALANCE_ORDER = ['ITAV', 'CLAV', 'XPCD', 'ITBD', 'CLBD', 'OPAV', 'OPBD', 'PRCD', 'VALU', 'OTHR', 'INFO', 'FWAV'];
-const MIN_REFRESH_MS = 15 * 60 * 1000;   // une actualisation manuelle au plus toutes les 15 minutes
+const MIN_REFRESH_MS = 5 * 60 * 1000;    // une actualisation manuelle au plus toutes les 5 minutes
 
 export default {
   async fetch(req, env) {
@@ -36,7 +36,11 @@ export default {
 
       if (url.pathname === '/start') return await start(url, env);
       if (url.pathname === '/balances') {
-        if (url.searchParams.get('refresh') === '1') await refreshAll(env, psuHeaders(req), null, true);
+        if (url.searchParams.get('refresh') === '1') {
+          // on renvoie directement l'état qui vient d'être lu (le stockage KV peut mettre ~1 min à se propager)
+          const fresh = await refreshAll(env, psuHeaders(req), null, true);
+          return json({ ...(await publicState(env, fresh)), refresh: fresh.info });
+        }
         return json(await publicState(env));
       }
       if (url.pathname === '/settings' && req.method === 'POST') {
@@ -178,8 +182,12 @@ async function linkFromCallback(url, env, st, state) {
 async function refreshAll(env, psu, onlyKey, manual) {
   const banks = (await env.BANK.get('banks', 'json')) || {};
   const state = (await env.BANK.get('state', 'json')) || { balances: {}, history: [] };
-  if (manual && state.refreshedAt && Date.now() - Date.parse(state.refreshedAt) < MIN_REFRESH_MS) return state;
+  if (manual && state.refreshedAt && Date.now() - Date.parse(state.refreshedAt) < MIN_REFRESH_MS) {
+    const waitSec = Math.ceil((MIN_REFRESH_MS - (Date.now() - Date.parse(state.refreshedAt))) / 1000);
+    return { ...state, banks, info: { skipped: true, waitSec } };
+  }
 
+  let updated = 0, errors = 0;
   for (const [key, bank] of Object.entries(banks)) {
     if (onlyKey && key !== onlyKey) continue;
     for (const acc of bank.accounts) {
@@ -188,11 +196,16 @@ async function refreshAll(env, psu, onlyKey, manual) {
         const r = await eb(env, `/accounts/${acc.uid}/balances`, {}, psu);
         const list = r.balances || [];
         const pick = BALANCE_ORDER.map(t => list.find(b => b.balance_type === t)).find(Boolean) || list[0];
-        state.balances[acc.uid] = pick
-          ? { amount: Number(pick.balance_amount.amount), currency: pick.balance_amount.currency, type: pick.balance_type, at: new Date().toISOString() }
-          : { ...prev, error: 'Aucun solde renvoyé par la banque', errorAt: new Date().toISOString() };
+        if (pick) {
+          state.balances[acc.uid] = { amount: Number(pick.balance_amount.amount), currency: pick.balance_amount.currency, type: pick.balance_type, at: new Date().toISOString() };
+          updated++;
+        } else {
+          state.balances[acc.uid] = { ...prev, error: 'Aucun solde renvoyé par la banque', errorAt: new Date().toISOString() };
+          errors++;
+        }
       } catch (e) {
         state.balances[acc.uid] = { ...prev, error: String(e.message).slice(0, 240), errorAt: new Date().toISOString() };
+        errors++;
       }
     }
   }
@@ -207,13 +220,14 @@ async function refreshAll(env, psu, onlyKey, manual) {
   const day = state.refreshedAt.slice(0, 10);
   state.history = (state.history || []).filter(h => h.d !== day).concat([{ d: day, byCur }]).slice(-400);
   await env.BANK.put('state', JSON.stringify(state));
-  return state;
+  return { ...state, banks, info: { skipped: false, updated, errors } };
 }
 
 // ── Ce qui est envoyé à KANGA (IBAN masqués) ──
-async function publicState(env) {
-  const banks = (await env.BANK.get('banks', 'json')) || {};
-  const state = (await env.BANK.get('state', 'json')) || { balances: {}, history: [] };
+// fresh : état qui vient d'être relu (évite de relire un stockage pas encore propagé)
+async function publicState(env, fresh) {
+  const banks = (fresh && fresh.banks) || (await env.BANK.get('banks', 'json')) || {};
+  const state = fresh || (await env.BANK.get('state', 'json')) || { balances: {}, history: [] };
   return {
     settings: (await env.BANK.get('settings', 'json')) || {},
     lastLink: (await env.BANK.get('lastLink', 'json')) || null,

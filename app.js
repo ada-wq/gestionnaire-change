@@ -2342,7 +2342,8 @@ async function adamApi(path, body) {
   if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
   return j;
 }
-async function adamLoad(refresh) {
+// refresh : relire les banques ; auto : relecture automatique (pas de message si elle est ignorée)
+async function adamLoad(refresh, auto) {
   if (!adamOpen) return;
   const btn = document.getElementById('adamRefreshBtn');
   btn.disabled = true;
@@ -2352,10 +2353,18 @@ async function adamLoad(refresh) {
     adamLoadedAt = Date.now();
     await adamMigrateYoussouf();
     adamPaint();
+    const info = adamData.refresh;
+    if (refresh && info && !auto) {
+      if (info.skipped) toast(`Soldes relus ${adamAgo(adamData.refreshedAt)} : nouvelle actualisation possible dans ${Math.max(1, Math.ceil(info.waitSec / 60))} min`, 'err');
+      else if (info.errors) toast(`${info.updated} compte(s) mis à jour, ${info.errors} en erreur (voir les messages sous les comptes)`, 'err');
+      else toast(`${info.updated} compte(s) mis à jour`, 'ok');
+    } else if (refresh && !info && !auto) {
+      toast('Mettez à jour le code du serveur Cloudflare pour voir le résultat de l\'actualisation', 'err');
+    }
     // soldes trop anciens (plus d'1 h) : relecture des banques, comme une ouverture d'appli bancaire
     if (!refresh && (!adamData.refreshedAt || Date.now() - Date.parse(adamData.refreshedAt) > ADAM_STALE_MS) && adamData.banks.length) {
       btn.disabled = false;
-      return adamLoad(true);
+      return adamLoad(true, true);
     }
   } catch (e) {
     if (e.message !== 'refusé') document.getElementById('adamSub').textContent = 'Serveur bancaire injoignable : ' + e.message;
