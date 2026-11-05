@@ -2351,6 +2351,7 @@ async function adamLoad(refresh, auto) {
   try {
     adamData = await adamApi('/balances' + (refresh ? '?refresh=1' : ''));
     adamLoadedAt = Date.now();
+    adamMergeSettings();
     await adamMigrateYoussouf();
     adamPaint();
     const info = adamData.refresh;
@@ -2372,14 +2373,39 @@ async function adamLoad(refresh, auto) {
 }
 // L'ancien champ « Montant Youssouf » devient un autre montant comme les autres (une seule fois)
 async function adamMigrateYoussouf() {
+  if (adamRead('kanga_adam_migrated') === '1') return;   // déjà fait sur cet appareil
   const s = (adamData && adamData.settings) || {};
   const v = Number(s.youssouf) || 0;
-  if (!v) return;
+  if (!v) { adamStore('kanga_adam_migrated', '1'); return; }
   const others = (s.others || []).slice();
   if (!others.some(o => /youssouf/i.test(o.label))) {
     others.unshift({ id: genId(), label: 'Youssouf' + (s.youssoufNote ? ' (' + s.youssoufNote + ')' : ''), amount: v, op: '-', at: s.youssoufAt || new Date().toISOString() });
   }
-  try { adamData = await adamApi('/settings', { others, youssouf: 0, youssoufNote: '' }); } catch (e) {}
+  try {
+    const updatedAt = new Date().toISOString();
+    adamData = await adamApi('/settings', { others, youssouf: 0, youssoufNote: '', updatedAt });
+    adamStore('kanga_adam_settings', JSON.stringify({ others: (adamData.settings || {}).others || others, updatedAt }));
+    adamStore('kanga_adam_migrated', '1');
+  } catch (e) {}
+}
+
+// Autres montants : la dernière version enregistrée est aussi gardée sur l'appareil.
+// Le stockage du serveur (KV) peut renvoyer une version plus ancienne pendant ~1 minute après
+// un enregistrement : c'est toujours la version la plus récente (date updatedAt) qui l'emporte.
+function adamLocalSettings() { try { return JSON.parse(adamRead('kanga_adam_settings') || 'null'); } catch (e) { return null; } }
+function adamMergeSettings() {
+  if (!adamData) return;
+  const local = adamLocalSettings();
+  const server = adamData.settings || {};
+  if (local && local.updatedAt && (!server.updatedAt || local.updatedAt > server.updatedAt)) {
+    adamData.settings = { ...server, others: local.others || [], updatedAt: local.updatedAt };
+    // toujours pas reçu par le serveur après 2 minutes : on renvoie cette version
+    if (Date.now() - Date.parse(local.updatedAt) > 2 * 60 * 1000) {
+      adamApi('/settings', { others: local.others || [], updatedAt: local.updatedAt }).catch(() => {});
+    }
+  } else if (server.updatedAt) {
+    adamStore('kanga_adam_settings', JSON.stringify({ others: server.others || [], updatedAt: server.updatedAt }));
+  }
 }
 async function adamRemove(key, name) {
   if (!confirm(`Retirer ${name} de l'Espace Adam ?`)) return;
@@ -2526,9 +2552,12 @@ function adamPaintAfter(banksTotal, euroKanga) {
 async function adamSaveOthers(list, okMsg, btn) {
   if (btn) btn.disabled = true;
   try {
-    const res = await adamApi('/settings', { others: list });
+    const updatedAt = new Date().toISOString();
+    const res = await adamApi('/settings', { others: list, updatedAt });
     if (!res.banks) { toast('Mettez à jour le code du serveur Cloudflare pour enregistrer ces montants', 'err'); return false; }
+    adamStore('kanga_adam_settings', JSON.stringify({ others: (res.settings || {}).others || list, updatedAt }));
     adamData = res;
+    adamMergeSettings();
     adamPaint();
     toast(okMsg, 'ok');
     return true;

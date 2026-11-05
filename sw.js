@@ -1,6 +1,6 @@
 ﻿// Service worker KANGA — fonctionnement hors ligne
 // Changer CACHE_VERSION à chaque mise à jour des fichiers pour forcer le rafraîchissement du cache.
-const CACHE_VERSION = 'kanga-v20';
+const CACHE_VERSION = 'kanga-v21';
 const CORE = ['./', 'index.html', 'style.css', 'app.js', 'manifest.json', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {

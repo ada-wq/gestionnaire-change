@@ -63,8 +63,11 @@ export default {
             at: o.at || new Date().toISOString()
           })).filter(o => o.label);
         }
+        // date de l'enregistrement : KANGA garde toujours la version la plus récente (le stockage KV
+        // peut renvoyer une ancienne version pendant ~1 minute après une écriture)
+        settings.updatedAt = typeof body.updatedAt === 'string' ? body.updatedAt : new Date().toISOString();
         await env.BANK.put('settings', JSON.stringify(settings));
-        return json(await publicState(env));
+        return json(await publicState(env, null, settings));
       }
       if (url.pathname === '/remove') {
         const banks = (await env.BANK.get('banks', 'json')) || {};
@@ -224,12 +227,12 @@ async function refreshAll(env, psu, onlyKey, manual) {
 }
 
 // ── Ce qui est envoyé à KANGA (IBAN masqués) ──
-// fresh : état qui vient d'être relu (évite de relire un stockage pas encore propagé)
-async function publicState(env, fresh) {
+// fresh / freshSettings : données qui viennent d'être lues ou écrites (évite de relire un stockage pas encore propagé)
+async function publicState(env, fresh, freshSettings) {
   const banks = (fresh && fresh.banks) || (await env.BANK.get('banks', 'json')) || {};
   const state = fresh || (await env.BANK.get('state', 'json')) || { balances: {}, history: [] };
   return {
-    settings: (await env.BANK.get('settings', 'json')) || {},
+    settings: freshSettings || (await env.BANK.get('settings', 'json')) || {},
     lastLink: (await env.BANK.get('lastLink', 'json')) || null,
     refreshedAt: state.refreshedAt || null,
     history: state.history || [],
