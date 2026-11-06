@@ -175,10 +175,11 @@
           </div>
           <div class="table-scroll">
             <table class="mt suivi-table">
-              <thead><tr><th class="c-chk"><input type="checkbox" id="suiviChkAll" onchange="toggleAllSuivi(this.checked)" title="Tout sélectionner"></th><th>Date</th><th>Devise</th><th>Opération</th><th>Montant</th><th>Personne</th><th>Suivi avec</th><th>À vérifier</th><th></th></tr></thead>
+              <thead><tr><th class="c-chk"><input type="checkbox" id="suiviChkAll" onchange="toggleAllSuivi(this.checked)" title="Tout sélectionner"></th><th>Date</th><th>Devise</th><th>Opération</th><th>Montant</th><th>Personne</th><th>Suivi avec</th><th title="Taux utilisé pour le patrimoine avec suivi, et effet de la transaction">Taux · effet</th><th>À vérifier</th><th></th></tr></thead>
               <tbody id="suiviOpenBody"></tbody>
             </table>
           </div>
+          <div class="suivi-impact" id="suiviImpact"></div>
         </div>
 
         <div class="panel">
@@ -211,6 +212,11 @@
             <div class="kpi-value" id="kpiCFA">—</div>
             <div class="kpi-sub" id="kpiCFASub">—</div>
           </div>
+          <div class="kpi kpi-neutral">
+            <div class="kpi-top"><span class="kpi-label">Transactions</span><span class="kpi-ic"><svg class="ic"><use href="#i-swap"/></svg></span></div>
+            <div class="kpi-value" id="kpiTx">—</div>
+            <div class="kpi-sub" id="kpiTxSub">—</div>
+          </div>
           <div class="kpi kpi-gold kpi-total">
             <div class="kpi-top"><span class="kpi-label">Patrimoine total (équiv. €)</span><span class="kpi-ic"><svg class="ic"><use href="#i-wallet"/></svg></span></div>
             <div class="kpi-value" id="kpiTotal">—</div>
@@ -222,6 +228,11 @@
               <button type="button" class="btn btn-sm" onclick="resetTotalRate()">Officiel</button>
             </div>
           </div>
+          <div class="kpi kpi-suivipat kpi-link" onclick="goSuiviPat()">
+            <div class="kpi-top"><span class="kpi-label">Patrimoine avec suivi</span><span class="kpi-ic"><svg class="ic"><use href="#i-suivi"/></svg></span></div>
+            <div class="kpi-value" id="kpiSuiviPat">—</div>
+            <div class="kpi-sub" id="kpiSuiviPatSub">—</div>
+          </div>
           <div class="kpi kpi-green">
             <div class="kpi-top"><span class="kpi-label">Entrées ce mois</span><span class="kpi-ic"><svg class="ic"><use href="#i-up"/></svg></span></div>
             <div class="kpi-value" id="kpiMIn">—</div>
@@ -232,11 +243,37 @@
             <div class="kpi-value" id="kpiMOut">—</div>
             <div class="kpi-sub" id="kpiMOutSub">—</div>
           </div>
-          <div class="kpi kpi-neutral">
-            <div class="kpi-top"><span class="kpi-label">Transactions</span><span class="kpi-ic"><svg class="ic"><use href="#i-swap"/></svg></span></div>
-            <div class="kpi-value" id="kpiTx">—</div>
-            <div class="kpi-sub" id="kpiTxSub">—</div>
+        </div>
+
+        <div class="panel suivipat-panel" id="suiviPatPanel">
+          <div class="panel-head">
+            <h2>Patrimoine avec suivi</h2>
+            <div class="rate-ctrl">
+              <span>Taux du patrimoine : 1 € =</span>
+              <input type="number" id="suiviPatRate" step="0.001" min="0" inputmode="decimal" onchange="applySuiviPatRate(this.value)">
+              <span>CFA</span>
+              <button type="button" class="btn btn-sm" onclick="applySuiviPatRate('')" title="Revenir au taux par défaut">665</button>
+            </div>
           </div>
+          <div class="adam-calc" id="suiviPatCalc"></div>
+          <p class="suivipat-rules">
+            Transactions « en cours » du Suivi : <b>sortie EUR</b> + montant × taux ÷ taux du patrimoine · <b>entrée EUR</b> − montant × taux ÷ taux du patrimoine ·
+            <b>sortie CFA</b> + montant ÷ taux · <b>entrée CFA</b> − montant ÷ taux. Taux par défaut : sortie EUR 690, entrée EUR 665, sortie CFA 665, entrée CFA 690,
+            modifiable pour chaque transaction dans le <a href="#" onclick="switchTab('suivi');return false;">Suivi</a>.
+          </p>
+          <div class="adam-others-head">Ajustements manuels <small>(montants en € à ajouter ou à enlever)</small></div>
+          <div class="adam-others" id="suiviAdjList"></div>
+          <form class="adam-yous adam-other-form" onsubmit="return suiviAdjSubmit(event)">
+            <div class="fgroup"><label for="suiviAdjLabel">Libellé</label><input type="text" id="suiviAdjLabel" placeholder="Ex. avance, frais…" maxlength="60"></div>
+            <div class="fgroup"><label for="suiviAdjAmt">Montant (€)</label><input type="number" step="0.01" min="0" id="suiviAdjAmt" placeholder="0,00"></div>
+            <div class="fgroup"><label for="suiviAdjOp">Effet</label>
+              <select id="suiviAdjOp"><option value="+">À ajouter</option><option value="-">À enlever</option></select>
+            </div>
+            <div class="adam-form-btns">
+              <button type="submit" class="btn btn-primary" id="suiviAdjBtn"><svg class="ic"><use href="#i-plus"/></svg><span>Ajouter</span></button>
+              <button type="button" class="btn btn-ghost" id="suiviAdjCancel" onclick="suiviAdjCancel()" style="display:none;">Annuler</button>
+            </div>
+          </form>
         </div>
 
         <div class="grid-2">

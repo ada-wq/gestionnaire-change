@@ -41,6 +41,12 @@ const DEFAULT_RATE  = 665;
 let customRate = parseFloat(localStorage.getItem('kanga_totalRate')) || DEFAULT_RATE;
 const sortState = { euro:{col:'date',dir:-1}, cfa:{col:'date',dir:-1} };
 
+// « Patrimoine avec suivi » : taux du patrimoine (1 € = … CFA) et taux par défaut d'une transaction en cours
+const SUIVI_PAT_RATE = 665;
+const SUIVI_TX_RATES = { euro: { in: 665, out: 690 }, cfa: { in: 690, out: 665 } };
+let suiviPatRate = parseFloat(localStorage.getItem('kanga_suiviPatRate')) || SUIVI_PAT_RATE;
+let suiviAdj = [], suiviAdjEditing = null;   // ajustements manuels en €
+
 // ── Taux personnalisé pour le KPI Patrimoine total ──
 function applyTotalRate() {
   const v = parseFloat(document.getElementById('totalRate').value);
@@ -61,6 +67,11 @@ function resetTotalRate() {
 function saveHoldings() { db.ref('/holdings').set(holdings).catch(e => console.error(e)); scheduleMirror(); }
 function holdingsTotalEUR() {
   return holdings.reduce((s,h) => s + (h.devise === 'CFA' ? (h.montant||0) / customRate : (h.montant||0)), 0);
+}
+function patrimoineTotal() {
+  const eS = euroT.reduce((a,b) => a + (b.entree||0) - (b.sortie||0), 0);
+  const cS = cfaT.reduce((a,b) => a + (b.entree||0) - (b.sortie||0), 0);
+  return eS + cS / customRate + holdingsTotalEUR();
 }
 function addHolding(e) {
   e.preventDefault();
@@ -331,7 +342,7 @@ async function syncMirror(manual = false) {
     savedAt: now.toISOString(),
     label: manual ? 'Manuel' : 'Auto',
     euroCount: euroT.length, cfaCount: cfaT.length, notesCount: notes.length, holdingsCount: holdings.length,
-    euroTransactions: euroT, cfaTransactions: cfaT, notes: notes, holdings: holdings
+    euroTransactions: euroT, cfaTransactions: cfaT, notes: notes, holdings: holdings, suiviAjustements: suiviAdj
   };
   try {
     await mirrorDb.ref(`/history/${key}`).set(snap);
@@ -423,6 +434,7 @@ async function confirmRestore(key, label) {
       await db.ref('/notes').set(notes);
       // les anciennes sauvegardes n'ont pas de holdings : on ne touche pas aux montants détenus dans ce cas
       if (d.holdings) { holdings = toArr(d.holdings); await db.ref('/holdings').set(holdings); renderHoldings(); }
+      if (d.suiviAjustements) await db.ref('/suiviAjustements').set(suiviAdjObject(d.suiviAjustements));
       updateAll(); renderNotesList(); closeHistory(); closeRestore();
       setMirror('ok', '✅ Restauré');
       logAction('Restauration miroir', null, null, label);
@@ -486,6 +498,16 @@ function listen() {
   db.ref('settings/customRate').on('value', s => {
     if (s.exists() && s.val()) { customRate = s.val(); localStorage.setItem('kanga_totalRate', customRate); }
     else if (s.exists() === false || s.val() === null) { customRate = OFFICIAL_RATE; }
+    updateAll();
+  });
+  db.ref('settings/suiviPatRate').on('value', s => {
+    const v = parseFloat(s.val());
+    suiviPatRate = v > 0 ? v : SUIVI_PAT_RATE;
+    try { localStorage.setItem('kanga_suiviPatRate', suiviPatRate); } catch (e) {}
+    updateAll();
+  });
+  db.ref('suiviAjustements').on('value', s => {
+    suiviAdj = Object.values(s.val() || {}).filter(a => a && a.id).sort((a, b) => (a.at || '').localeCompare(b.at || ''));
     updateAll();
   });
   db.ref('.info/connected').on('value', s => {
@@ -756,7 +778,7 @@ function resetFilters(type) {
 function updateAll() {
   const eS = euroT.reduce((a,b)=>a+b.entree-b.sortie,0);
   const cS = cfaT.reduce((a,b)=>a+b.entree-b.sortie,0);
-  const total = eS + cS / customRate + holdingsTotalEUR();
+  const total = patrimoineTotal();
 
   const curMonth = new Date().toISOString().slice(0,7);
   const mE = euroT.filter(t=>t.date.startsWith(curMonth));
@@ -784,6 +806,7 @@ function updateAll() {
   updateSuggestions();
   updateMonthSelector();
   renderSuivi();
+  renderSuiviPat();
   updatePageHeader();
   if (currentTab === 'adam' && adamOpen && adamData) adamPaint();   // le solde Euro de KANGA a pu changer
   saveLocalCache();
@@ -1437,7 +1460,7 @@ function renderNotesList() {
 //  EXPORT / IMPORT
 // ════════════════════════════════════════════
 function exportData() {
-  const blob = new Blob([JSON.stringify({euroTransactions:euroT,cfaTransactions:cfaT,notes,holdings,exportDate:new Date().toISOString()},null,2)],{type:'application/json'});
+  const blob = new Blob([JSON.stringify({euroTransactions:euroT,cfaTransactions:cfaT,notes,holdings,suiviAjustements:suiviAdj,exportDate:new Date().toISOString()},null,2)],{type:'application/json'});
   const a = document.createElement('a'); a.href=URL.createObjectURL(blob);
   a.download=`kanga-${new Date().toISOString().split('T')[0]}.json`; a.click();
   URL.revokeObjectURL(a.href); toast('Export JSON réussi', 'ok');
@@ -1471,6 +1494,7 @@ function importData(e) {
             euroT = toArr(d.euroTransactions); cfaT = toArr(d.cfaTransactions);
             if (d.notes) notes = toArr(d.notes);
             if (d.holdings) { holdings = toArr(d.holdings); saveHoldings(); renderHoldings(); }
+            if (d.suiviAjustements) db.ref('/suiviAjustements').set(suiviAdjObject(d.suiviAjustements)).catch(() => {});
             saveToDB(); saveNotes(); updateAll(); renderNotesList();
             logAction('Import JSON', null, null, `${euroT.length} Euro · ${cfaT.length} CFA`);
             toast('Import réussi', 'ok');
@@ -1595,13 +1619,19 @@ function suiviRowHTML(t, done) {
   const age = suiviAge(t);
   const late = !done && age > SUIVI_ALERT_DAYS;
   const chk = done ? '' : `<td class="c-chk"><input type="checkbox" ${suiviSel.has(t.cur + ':' + t.id) ? 'checked' : ''} onchange="toggleSuivi('${t.cur}','${t.id}',this.checked)"></td>`;
+  const def = done ? 0 : suiviDefaultRate(t), eff = done ? 0 : suiviContribution(t);
+  const rate = done ? '' : `<td class="c-rate">
+      <input type="number" class="suivi-rate" step="0.001" min="0" inputmode="decimal" value="${parseFloat(t.tauxSuivi) > 0 ? t.tauxSuivi : ''}" placeholder="${def}"
+        onchange="setSuiviTxRate('${t.cur}','${t.id}',this.value)" title="Taux pour le patrimoine avec suivi (vide = ${def} par défaut)">
+      <small class="${eff < 0 ? 'val-out' : 'val-in'}" title="Effet sur le patrimoine avec suivi">${eff < 0 ? '−' : '+'}${fmtEuro(Math.abs(eff))}</small>
+    </td>`;
   return `<tr>${chk}
     <td class="c-date">${t.date}${late ? ` <span class="badge badge-suivi-late" title="En cours depuis ${age} jours">${svgIc('alert')}${age} j</span>` : ''}</td>
     <td class="c-cur"><span class="badge ${t.cur==='euro'?'badge-euro':'badge-cfa'}">${t.cur==='euro'?'EUR':'CFA'}</span></td>
     <td class="c-op"><span class="badge ${t.operation==='Entrée'?'badge-in':'badge-out'}">${t.operation}</span></td>
     <td class="c-amt ${t.entree>0?'val-in':'val-out'}">${t.entree>0?'+':'−'}${fmt(amt)}</td>
     <td class="c-person"><span class="person-link" data-name="${esc(t.personne)}">${esc(t.personne)}</span></td>
-    <td class="c-who${t.contrepartie ? '' : ' is-empty'}">${t.contrepartie ? `<span class="badge badge-cat">${svgIc('user')}${esc(t.contrepartie)}</span>` : '—'}</td>
+    <td class="c-who${t.contrepartie ? '' : ' is-empty'}">${t.contrepartie ? `<span class="badge badge-cat">${svgIc('user')}${esc(t.contrepartie)}</span>` : '—'}</td>${rate}
     <td class="c-note">${last}</td>
     <td class="c-act">${done
       ? `<button class="act-btn txt" onclick="reopenSuivi('${t.cur}','${t.id}')">${svgIc('restore')}Rouvrir</button>`
@@ -1649,7 +1679,7 @@ function renderSuivi() {
   document.getElementById('suiviDoneCount').textContent = done.length + ' terminée' + (done.length > 1 ? 's' : '');
   document.getElementById('suiviOpenBody').innerHTML = open.length
     ? open.map(t => suiviRowHTML(t, false)).join('')
-    : '<tr><td colspan="9" class="empty">Aucune transaction en cours</td></tr>';
+    : '<tr><td colspan="10" class="empty">Aucune transaction en cours</td></tr>';
   document.getElementById('suiviDoneBody').innerHTML = done.length
     ? done.map(t => suiviRowHTML(t, true)).join('')
     : '<tr><td colspan="8" class="empty">Aucune transaction terminée</td></tr>';
@@ -1756,6 +1786,150 @@ function closeSelected() {
     suiviSel.clear();
     renderSuivi();
     toast(n + ' transaction' + (n > 1 ? 's' : '') + ' terminée' + (n > 1 ? 's' : ''), 'ok');
+  });
+}
+
+// ══ PATRIMOINE AVEC SUIVI ══
+// Une transaction en cours est une créance (sortie) ou une dette (entrée) tant qu'elle n'est pas terminée :
+//   EUR : ± montant × taux de la transaction ÷ taux du patrimoine avec suivi
+//   CFA : ± montant ÷ taux de la transaction
+function suiviIsIn(t) { return (t.entree || 0) > 0; }
+function suiviDefaultRate(t) { return SUIVI_TX_RATES[t.cur][suiviIsIn(t) ? 'in' : 'out']; }
+function suiviTxRate(t) { const r = parseFloat(t.tauxSuivi); return r > 0 ? r : suiviDefaultRate(t); }
+function suiviContribution(t) {
+  const isIn = suiviIsIn(t);
+  const amt = isIn ? t.entree : (t.sortie || 0);
+  const v = t.cur === 'euro' ? amt * suiviTxRate(t) / suiviPatRate : amt / suiviTxRate(t);
+  return isIn ? -v : v;
+}
+function suiviAdjValue(a) { return (a.op === '-' ? -1 : 1) * (Number(a.montant) || 0); }
+// Liste (sauvegarde, import) → objet indexé par id, tel qu'enregistré dans Firebase
+function suiviAdjObject(v) { const o = {}; toArr(v).forEach(a => { if (a && a.id) o[a.id] = a; }); return o; }
+function suiviPatrimoine() {
+  const parts = { 'euro:out': { n: 0, v: 0 }, 'euro:in': { n: 0, v: 0 }, 'cfa:out': { n: 0, v: 0 }, 'cfa:in': { n: 0, v: 0 } };
+  [...euroT.map(t => ({ ...t, cur: 'euro' })), ...cfaT.map(t => ({ ...t, cur: 'cfa' }))]
+    .filter(t => t.statut === 'en_cours')
+    .forEach(t => { const p = parts[t.cur + ':' + (suiviIsIn(t) ? 'in' : 'out')]; p.n++; p.v += suiviContribution(t); });
+  const base = patrimoineTotal();
+  const suivi = Object.values(parts).reduce((s, p) => s + p.v, 0);
+  const manual = suiviAdj.reduce((s, a) => s + suiviAdjValue(a), 0);
+  return { base, parts, suivi, manual, total: base + suivi + manual };
+}
+function fmtSigned(v) { return (v < 0 ? '− ' : '+ ') + fmtEuro(Math.abs(v)); }
+
+function renderSuiviPat() {
+  const p = suiviPatrimoine();
+  const gap = p.suivi + p.manual;
+  document.getElementById('kpiSuiviPat').textContent = fmtEuro(p.total);
+  document.getElementById('kpiSuiviPatSub').textContent = `${fmtSigned(gap)} par rapport au patrimoine`;
+  const rateIn = document.getElementById('suiviPatRate');
+  if (!rateIn.matches(':focus')) rateIn.value = suiviPatRate;
+
+  const line = (label, value, sub) => `<div class="adam-calc-row">
+      <span>${label}${sub ? `<small>${sub}</small>` : ''}</span>
+      <b class="${value < 0 ? 'val-neg' : ''}">${fmtSigned(value)}</b>
+    </div>`;
+  const part = (k, label, how) => line(label, p.parts[k].v, `${p.parts[k].n} en cours · ${how}`);
+  document.getElementById('suiviPatCalc').innerHTML =
+    `<div class="adam-calc-row"><span>Patrimoine total<small>au taux 1 € = ${customRate.toLocaleString('fr-FR')} CFA</small></span><b>${fmtEuro(p.base)}</b></div>` +
+    part('euro:out', 'Sorties EUR en cours', `montant × taux ÷ ${suiviPatRate.toLocaleString('fr-FR')}`) +
+    part('euro:in',  'Entrées EUR en cours', `montant × taux ÷ ${suiviPatRate.toLocaleString('fr-FR')}`) +
+    part('cfa:out',  'Sorties CFA en cours', 'montant ÷ taux') +
+    part('cfa:in',   'Entrées CFA en cours', 'montant ÷ taux') +
+    suiviAdj.map(a => line(esc(a.label), suiviAdjValue(a), 'ajustement manuel' + (a.who ? ' · ' + esc(a.who) : ''))).join('') +
+    `<div class="adam-calc-row total"><span>Patrimoine avec suivi</span><b class="${p.total < 0 ? 'val-neg' : 'val-pos'}">${fmtEuro(p.total)}</b></div>`;
+
+  document.getElementById('suiviAdjList').innerHTML = suiviAdj.length ? suiviAdj.map(a => `<div class="adam-other${suiviAdjEditing === a.id ? ' editing' : ''}">
+      <span class="badge ${a.op === '-' ? 'badge-out' : 'badge-in'}">${a.op === '-' ? 'À enlever' : 'À ajouter'}</span>
+      <span class="adam-other-label">${esc(a.label)}</span>
+      <b>${fmtEuro(Number(a.montant) || 0)}</b>
+      <button class="act-btn" onclick="suiviAdjEdit('${esc(a.id)}')" title="Modifier">${svgIc('edit')}</button>
+      <button class="act-btn act-del" onclick="suiviAdjDelete('${esc(a.id)}')" title="Supprimer">${svgIc('trash')}</button>
+    </div>`).join('') : '<div class="ai-mem-empty">Aucun ajustement. Ajoutez-en un ci-dessous pour ajouter ou enlever un montant en euros.</div>';
+
+  document.getElementById('suiviImpact').innerHTML =
+    `<span>Effet des transactions en cours sur le patrimoine : <b class="${p.suivi < 0 ? 'val-neg' : 'val-pos'}">${fmtSigned(p.suivi)}</b></span>` +
+    `<span>Patrimoine avec suivi : <b>${fmtEuro(p.total)}</b> <a href="#" onclick="goSuiviPat();return false;">Détail</a></span>`;
+}
+
+function goSuiviPat() {
+  switchTab('dash');
+  document.getElementById('suiviPatPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function applySuiviPatRate(val) {
+  const v = parseFloat(val);
+  suiviPatRate = v > 0 ? v : SUIVI_PAT_RATE;
+  try { localStorage.setItem('kanga_suiviPatRate', suiviPatRate); } catch (e) {}
+  db.ref('settings/suiviPatRate').set(v > 0 ? v : null).catch(() => {});
+  updateAll();
+}
+
+// Taux propre à une transaction en cours (vide = taux par défaut selon le sens)
+function setSuiviTxRate(type, id, val) {
+  const t = (type === 'euro' ? euroT : cfaT).find(x => x.id === id);
+  if (!t) return;
+  const r = parseFloat(val);
+  const next = r > 0 ? r : null;
+  if ((parseFloat(t.tauxSuivi) || null) === next) return;
+  const def = suiviDefaultRate({ ...t, cur: type });
+  requireUnlock(() => {
+    mutateTx(type, a => a.map(x => x.id === id ? { ...x, tauxSuivi: next } : x));
+    logAction('Taux du suivi modifié', type, t, next ? `1 € = ${next} CFA` : `taux par défaut (${def})`);
+    toast(next ? `Taux ${next} enregistré` : `Taux par défaut (${def}) rétabli`, 'ok');
+  });
+}
+
+// ── Ajustements manuels (montants en € ajoutés ou enlevés du patrimoine avec suivi) ──
+function suiviAdjSubmit(e) {
+  e.preventDefault();
+  const label = document.getElementById('suiviAdjLabel').value.trim();
+  const montant = parseFloat(document.getElementById('suiviAdjAmt').value);
+  const op = document.getElementById('suiviAdjOp').value === '-' ? '-' : '+';
+  if (!label) { toast('Donnez un libellé', 'err'); return false; }
+  if (!(montant > 0)) { toast('Montant invalide', 'err'); return false; }
+  const prev = suiviAdjEditing && suiviAdj.find(a => a.id === suiviAdjEditing);
+  requireUnlock(() => {
+    const rec = { id: prev ? prev.id : genId(), label, montant, op, who: getWho() || 'Inconnu', at: new Date().toISOString() };
+    db.ref('suiviAjustements/' + rec.id).set(rec).then(scheduleMirror).catch(() => toast('Erreur de synchronisation', 'err'));
+    logAction(prev ? 'Ajustement du patrimoine modifié' : 'Ajustement du patrimoine ajouté', null, null, `${label} : ${fmtSigned(suiviAdjValue(rec))}`);
+    suiviAdjCancel();
+    toast(prev ? `« ${label} » mis à jour` : `« ${label} » ajouté`, 'ok');
+  });
+  return false;
+}
+function suiviAdjEdit(id) {
+  const a = suiviAdj.find(x => x.id === id);
+  if (!a) return;
+  suiviAdjEditing = id;
+  document.getElementById('suiviAdjLabel').value = a.label;
+  document.getElementById('suiviAdjAmt').value = a.montant;
+  document.getElementById('suiviAdjOp').value = a.op === '-' ? '-' : '+';
+  document.querySelector('#suiviAdjBtn span').textContent = 'Mettre à jour';
+  document.getElementById('suiviAdjCancel').style.display = '';
+  renderSuiviPat();
+  document.getElementById('suiviAdjAmt').focus();
+}
+function suiviAdjCancel() {
+  suiviAdjEditing = null;
+  document.getElementById('suiviAdjLabel').value = '';
+  document.getElementById('suiviAdjAmt').value = '';
+  document.getElementById('suiviAdjOp').value = '+';
+  document.querySelector('#suiviAdjBtn span').textContent = 'Ajouter';
+  document.getElementById('suiviAdjCancel').style.display = 'none';
+  renderSuiviPat();
+}
+function suiviAdjDelete(id) {
+  const a = suiviAdj.find(x => x.id === id);
+  if (!a || !confirm(`Supprimer « ${a.label} » ?`)) return;
+  requireUnlock(() => {
+    if (suiviAdjEditing === id) suiviAdjCancel();
+    db.ref('suiviAjustements/' + id).remove().then(scheduleMirror).catch(() => toast('Erreur de synchronisation', 'err'));
+    logAction('Ajustement du patrimoine supprimé', null, null, `${a.label} : ${fmtSigned(suiviAdjValue(a))}`);
+    toast(`« ${a.label} » supprimé`, '', () => {
+      db.ref('suiviAjustements/' + id).set(a).then(scheduleMirror).catch(() => {});
+      toast('Suppression annulée', 'ok');
+    });
   });
 }
 
@@ -1892,13 +2066,13 @@ function purgeTrash(id) {
 // ── Hors ligne (PWA) : copie locale des dernières données connues ──
 // Firebase Realtime Database (web) ne garde pas de cache disque : on le fait nous-mêmes.
 function saveLocalCache() {
-  try { localStorage.setItem('kanga_cache', JSON.stringify({ ts: Date.now(), euroT, cfaT, holdings, notes })); } catch (e) {}
+  try { localStorage.setItem('kanga_cache', JSON.stringify({ ts: Date.now(), euroT, cfaT, holdings, notes, suiviAdj })); } catch (e) {}
 }
 function hydrateFromCache() {
   try {
     const c = JSON.parse(localStorage.getItem('kanga_cache') || 'null');
     if (!c) return;
-    euroT = toArr(c.euroT); cfaT = toArr(c.cfaT); holdings = toArr(c.holdings); notes = toArr(c.notes);
+    euroT = toArr(c.euroT); cfaT = toArr(c.cfaT); holdings = toArr(c.holdings); notes = toArr(c.notes); suiviAdj = toArr(c.suiviAdj);
     document.getElementById('euroLoading').style.display = 'none';
     document.getElementById('cfaLoading').style.display = 'none';
     updateAll(); renderHoldings(); renderNotesList();
@@ -2007,6 +2181,8 @@ function aiDossier() {
   L.push(`Date du jour : ${new Date().toISOString().slice(0, 10)}`);
   L.push(`Taux de référence : 1 € = ${customRate} CFA (taux officiel : ${OFFICIAL_RATE})`);
   L.push(`Patrimoine actuel : solde Euro ${r2(eS)} € ; solde CFA ${Math.round(cS)} CFA (≈ ${r2(cS / customRate)} €) ; argent détenu par des personnes ≈ ${r2(hE)} € ; TOTAL ≈ ${r2(eS + cS / customRate + hE)} €`);
+  const sp = suiviPatrimoine();
+  L.push(`Patrimoine avec suivi : ${r2(sp.total)} € = patrimoine ${r2(sp.base)} € + effet des transactions en cours ${r2(sp.suivi)} € + ajustements manuels ${r2(sp.manual)} € (taux du patrimoine avec suivi : 1 € = ${suiviPatRate} CFA)`);
 
   // patrimoine jour par jour, à partir des transactions (au taux de référence actuel, hors argent détenu)
   const byDay = {};
@@ -2022,10 +2198,16 @@ function aiDossier() {
     prev = tot;
   });
 
-  const txLines = arr => arr.slice().sort((a, b) => (a.date || '').localeCompare(b.date || '')).map(t =>
-    [t.id, t.date, t.operation, t.entree || 0, t.sortie || 0, t.personne, t.categorie, t.taux, t.statut, t.contrepartie, t.remarque].map(aiCell).join(';'));
-  L.push('', '## Transactions EURO (montants en €)', 'id;date;operation;entree;sortie;personne;categorie;taux;statut_suivi;suivi_avec;remarque', ...txLines(euroT));
-  L.push('', '## Transactions CFA (montants en FCFA)', 'id;date;operation;entree;sortie;personne;categorie;taux;statut_suivi;suivi_avec;remarque', ...txLines(cfaT));
+  const txLines = (arr, cur) => arr.slice().sort((a, b) => (a.date || '').localeCompare(b.date || '')).map(t =>
+    [t.id, t.date, t.operation, t.entree || 0, t.sortie || 0, t.personne, t.categorie, t.taux, t.statut, t.contrepartie,
+      t.statut === 'en_cours' ? suiviTxRate({ ...t, cur }) : '', t.remarque].map(aiCell).join(';'));
+  const txHead = 'id;date;operation;entree;sortie;personne;categorie;taux;statut_suivi;suivi_avec;taux_suivi;remarque';
+  L.push('', '## Transactions EURO (montants en €)', txHead, ...txLines(euroT, 'euro'));
+  L.push('', '## Transactions CFA (montants en FCFA)', txHead, ...txLines(cfaT, 'cfa'));
+
+  L.push('', '## Ajustements manuels du patrimoine avec suivi (en €)', 'libellé;montant;effet;par;date');
+  suiviAdj.forEach(a => L.push([a.label, a.montant, a.op === '-' ? 'à enlever' : 'à ajouter', a.who, (a.at || '').slice(0, 10)].map(aiCell).join(';')));
+  if (!suiviAdj.length) L.push('(aucun)');
 
   L.push('', '## Argent détenu par des personnes (hors transactions)', 'personne;devise;montant;remarque');
   holdings.forEach(h => L.push([h.personne, h.devise, h.montant, h.remarque].map(aiCell).join(';')));
@@ -2050,6 +2232,7 @@ Règles :
 - Appuie-toi uniquement sur les DONNÉES KANGA ci-dessous. Si une information manque, dis-le au lieu d'inventer.
 - Vérifie chaque calcul. Cite la date, la personne et le montant des transactions dont tu parles.
 - Patrimoine total = solde Euro + solde CFA ÷ taux de référence + argent détenu par des personnes.
+- Patrimoine avec suivi = patrimoine total + effet de chaque transaction « en cours » du suivi + ajustements manuels. Effet d'une transaction en cours (taux = colonne taux_suivi) : sortie EUR + montant × taux ÷ taux du patrimoine avec suivi ; entrée EUR − montant × taux ÷ taux du patrimoine avec suivi ; sortie CFA + montant ÷ taux ; entrée CFA − montant ÷ taux. Une sortie en cours est une créance (on nous doit la contrepartie), une entrée en cours est une dette.
 - Si la section « Espace Adam » est présente : Solde après KANGA = Total de mes banques − Solde Euro de KANGA ± autres montants (chaque autre montant est déjà donné avec son effet). Cette section n'apparaît que lorsque Adam a déjà déverrouillé l'Espace Adam sur cet appareil pendant cette session ; si elle est absente et qu'on te parle du « solde après KANGA » ou des soldes bancaires, dis que ces données ne sont pas disponibles tant que l'Espace Adam n'a pas été ouvert.
 - Variation du patrimoine : compare les dates dans « Patrimoine jour par jour », repère les jours où il a baissé et liste les transactions de ces jours qui l'expliquent. Rappelle qu'un changement de l'argent détenu ou du taux de référence peut aussi le faire varier (ils ne sont pas dans l'historique).
 - Contrepartie entre Euro et CFA : montant CFA ≈ montant € × taux (taux de la transaction, sinon entre 650 et 700). Compare les noms (identiques, proches ou cités dans les remarques), les dates (quelques jours à quelques semaines d'écart) et pense aux paiements en plusieurs fois (somme de 2 ou 3 transactions). Propose les meilleurs candidats avec un niveau de confiance (fort, moyen, faible).

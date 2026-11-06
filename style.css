@@ -1176,3 +1176,30 @@ th { color:var(--brand-text); }
   .adam-form-btns .btn { flex:1; }
   .adam-links { grid-template-columns:1fr; }
 }
+
+/* ═══ PATRIMOINE AVEC SUIVI ═══ */
+/* tableau de bord : 3 lignes de 4 (les deux patrimoines, entrées et sorties sur 2 colonnes) */
+#dashKpis .kpi-suivipat, #dashKpis .kpi-green, #dashKpis .kpi-red { grid-column:span 2; }
+.kpi.kpi-suivipat { border:none; color:#fff; background:linear-gradient(135deg,#7c3aed,#db2777); box-shadow:0 8px 20px -6px rgba(124,58,237,.5); }
+@media (max-width: 1100px) { #dashKpis .kpi-green, #dashKpis .kpi-red { grid-column:auto; } }
+@media (max-width: 860px) { #dashKpis .kpi-suivipat { grid-column:1 / -1; } }
+
+.suivipat-panel .rate-ctrl { margin-top:0; }
+.suivipat-rules { padding:10px 18px 14px; font-size:.76rem; line-height:1.6; color:var(--text3); }
+.suivipat-rules b { color:var(--text2); font-weight:600; }
+.suivipat-rules a, .suivi-impact a { color:var(--brand); font-weight:600; }
+
+/* Suivi : taux de chaque transaction en cours et effet sur le patrimoine */
+.suivi-table .c-rate { white-space:nowrap; }
+.suivi-rate { width:86px; height:30px; padding:0 8px; font-size:.82rem; }
+.c-rate small { display:block; margin-top:3px; font-size:.74rem; font-variant-numeric:tabular-nums; }
+.suivi-impact { display:flex; flex-wrap:wrap; justify-content:space-between; gap:6px 16px; padding:12px 18px; border-top:1px solid var(--border); background:var(--surface2); font-size:.84rem; color:var(--text2); }
+.suivi-impact b { font-variant-numeric:tabular-nums; }
+.suivi-impact a { margin-left:6px; }
+@media (max-width: 860px) {
+  .suivi-table:not(.done) tr { grid-template-areas:"chk person person person amount" "chk date cur op who" "chk note note note note" "chk rate rate rate act"; }
+  .mt .c-rate { grid-area:rate; display:flex; align-items:center; gap:8px; }
+  .mt .c-rate::before { content:'Taux'; font-size:.76rem; color:var(--text3); }
+  .mt .c-rate small { margin-top:0; }
+  .suivi-impact { flex-direction:column; padding:12px 14px; }
+}
