@@ -2037,6 +2037,9 @@ function aiDossier() {
   L.push('', '## Mémoire (faits à retenir donnés par l\'utilisateur)');
   mem.forEach(m => L.push('- ' + m.text));
   if (!mem.length) L.push('(vide)');
+
+  const adamSection = adamDossierSection();
+  if (adamSection) L.push(adamSection);
   return L.join('\n');
 }
 
@@ -2047,6 +2050,7 @@ Règles :
 - Appuie-toi uniquement sur les DONNÉES KANGA ci-dessous. Si une information manque, dis-le au lieu d'inventer.
 - Vérifie chaque calcul. Cite la date, la personne et le montant des transactions dont tu parles.
 - Patrimoine total = solde Euro + solde CFA ÷ taux de référence + argent détenu par des personnes.
+- Si la section « Espace Adam » est présente : Solde après KANGA = Total de mes banques − Solde Euro de KANGA ± autres montants (chaque autre montant est déjà donné avec son effet). Cette section n'apparaît que lorsque Adam a déjà déverrouillé l'Espace Adam sur cet appareil pendant cette session ; si elle est absente et qu'on te parle du « solde après KANGA » ou des soldes bancaires, dis que ces données ne sont pas disponibles tant que l'Espace Adam n'a pas été ouvert.
 - Variation du patrimoine : compare les dates dans « Patrimoine jour par jour », repère les jours où il a baissé et liste les transactions de ces jours qui l'expliquent. Rappelle qu'un changement de l'argent détenu ou du taux de référence peut aussi le faire varier (ils ne sont pas dans l'historique).
 - Contrepartie entre Euro et CFA : montant CFA ≈ montant € × taux (taux de la transaction, sinon entre 650 et 700). Compare les noms (identiques, proches ou cités dans les remarques), les dates (quelques jours à quelques semaines d'écart) et pense aux paiements en plusieurs fois (somme de 2 ou 3 transactions). Propose les meilleurs candidats avec un niveau de confiance (fort, moyen, faible).
 - Anomalies à signaler : doublons, taux inhabituels, sorties sans contrepartie, suivis en cours depuis longtemps, soldes négatifs, montants très inhabituels.
@@ -2546,6 +2550,38 @@ function adamPaintAfter(banksTotal, euroKanga) {
       <button class="act-btn act-del" onclick="adamDeleteOther('${esc(o.id)}')" title="Supprimer">${svgIc('trash')}</button>
     </div>`).join('') : '<div class="ai-mem-empty">Aucun autre montant. Ajoutez-en un ci-dessous : Youssouf, liquide, argent chez quelqu\'un, dette…</div>';
   return after;
+}
+
+// Section ajoutée au dossier envoyé à l'assistant IA : uniquement si Adam a déjà déverrouillé
+// l'Espace Adam sur cet appareil pendant cette session (jamais chargée automatiquement en son nom).
+function adamDossierSection() {
+  if (getWho() !== 'Adam' || !adamOpen || !adamData) return '';
+  const d = adamData;
+  let total = 0;
+  const L = ['', '## Espace Adam — soldes bancaires (visible uniquement parce que l\'Espace Adam est déverrouillé sur cet appareil)',
+    'banque;compte;devise;solde;relevé_le'];
+  d.banks.forEach(b => b.accounts.forEach(a => {
+    if (typeof a.amount !== 'number') return;
+    const eur = adamToEur(a.amount, a.currency);
+    if (eur !== null) total += eur;
+    L.push([b.name, a.name, a.currency, a.amount, (a.at || '').slice(0, 16)].map(aiCell).join(';'));
+  }));
+  const euroKanga = euroT.reduce((s, t) => s + (t.entree || 0) - (t.sortie || 0), 0);
+  const settings = d.settings || {};
+  const others = Array.isArray(settings.others) ? settings.others : [];
+  const sign = o => (o.op === '+' ? 1 : -1) * (Number(o.amount) || 0);
+  const after = total - euroKanga + others.reduce((s, o) => s + sign(o), 0);
+  L.push('', `Total de mes banques (converti en €) : ${total.toFixed(2)} €`, `Solde Euro de KANGA : ${euroKanga.toFixed(2)} €`);
+  L.push('', '## Autres montants de l\'Espace Adam', 'libellé;montant;effet;date');
+  others.forEach(o => L.push([o.label, o.amount, o.op === '+' ? 'à ajouter' : 'à retirer', (o.at || '').slice(0, 10)].map(aiCell).join(';')));
+  if (!others.length) L.push('(aucun)');
+  L.push('', `Solde après KANGA (total des banques − solde Euro KANGA ± autres montants) : ${after.toFixed(2)} €`);
+  const hist = d.history || [];
+  if (hist.length) {
+    L.push('', '## Historique du total de mes banques (jour par jour, en €)', 'date;total_banques_eur');
+    hist.forEach(h => L.push(`${h.d};${adamHistTotal(h).toFixed(2)}`));
+  }
+  return L.join('\n');
 }
 
 // ── Autres montants : ajout, modification, suppression (liste renvoyée au serveur à chaque fois) ──
