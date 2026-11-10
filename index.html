@@ -510,23 +510,52 @@
 
         <div id="adamContent" style="display:none;">
           <div class="adam-hero">
-            <div class="adam-hero-main">
-              <div class="adam-hero-label">Solde après KANGA</div>
-              <div class="adam-hero-total adam-money" id="adamAfter">—</div>
-              <div class="adam-hero-sub" id="adamSub">—</div>
+            <div class="adam-hero-top">
+              <div class="adam-hero-main">
+                <div class="adam-hero-label">Solde après KANGA</div>
+                <div class="adam-hero-total adam-money" id="adamAfter">—</div>
+                <div class="adam-hero-move adam-money" id="adamAfterDelta"></div>
+              </div>
+              <div class="adam-hero-actions">
+                <button class="btn" id="adamRefreshBtn" onclick="adamLoad(true)"><svg class="ic"><use href="#i-restore"/></svg>Actualiser</button>
+                <button class="btn" id="adamHideBtn" onclick="adamToggleHide()" title="Masquer / afficher les montants"><svg class="ic"><use href="#i-eye"/></svg><span>Masquer</span></button>
+                <button class="btn" onclick="adamLock()"><svg class="ic"><use href="#i-lock"/></svg>Verrouiller</button>
+              </div>
             </div>
-            <div class="adam-hero-side">
-              <div class="adam-mini"><span>Total de mes banques</span><b class="adam-money" id="adamTotal">—</b><small id="adamDelta"></small></div>
-              <div class="adam-mini"><span>Solde Euro de KANGA</span><b class="adam-money" id="adamEuroKanga">—</b><small id="adamEuroCount"></small></div>
+            <div class="adam-eq">
+              <div class="adam-eq-item"><span>Total de mes banques</span><b class="adam-money" id="adamTotal">—</b><small class="adam-money" id="adamDelta"></small></div>
+              <i class="adam-eq-op" aria-hidden="true">−</i>
+              <div class="adam-eq-item"><span>Solde Euro de KANGA</span><b class="adam-money" id="adamEuroKanga">—</b><small id="adamEuroCount"></small></div>
+              <i class="adam-eq-op" aria-hidden="true">±</i>
+              <div class="adam-eq-item"><span>Autres montants</span><b class="adam-money" id="adamOthersTotal">—</b><small id="adamOthersCount"></small></div>
             </div>
-            <div class="adam-hero-actions">
-              <button class="btn" id="adamRefreshBtn" onclick="adamLoad(true)"><svg class="ic"><use href="#i-restore"/></svg>Actualiser</button>
-              <button class="btn" id="adamHideBtn" onclick="adamToggleHide()" title="Masquer / afficher les montants"><svg class="ic"><use href="#i-eye"/></svg><span>Masquer</span></button>
-              <button class="btn" onclick="adamLock()"><svg class="ic"><use href="#i-lock"/></svg>Verrouiller</button>
-            </div>
+            <div class="adam-hero-sub" id="adamSub">—</div>
           </div>
 
           <div id="adamNotice"></div>
+
+          <div class="panel pad adam-trend">
+            <div class="adam-trend-head">
+              <div class="panel-title">Évolution</div>
+              <div class="adam-seg" id="adamMetricSeg" role="group" aria-label="Courbe affichée">
+                <button type="button" data-m="after" onclick="adamSetChart('after')">Solde après KANGA</button>
+                <button type="button" data-m="banks" onclick="adamSetChart('banks')">Total de mes banques</button>
+              </div>
+              <div class="adam-seg" id="adamDaysSeg" role="group" aria-label="Période">
+                <button type="button" data-d="7" onclick="adamSetChart(null, 7)">7 j</button>
+                <button type="button" data-d="30" onclick="adamSetChart(null, 30)">30 j</button>
+                <button type="button" data-d="90" onclick="adamSetChart(null, 90)">90 j</button>
+                <button type="button" data-d="0" onclick="adamSetChart(null, 0)">Tout</button>
+              </div>
+            </div>
+            <div class="adam-stats" id="adamChartStats"></div>
+            <div class="a-chart adam-chart" id="adamChart"></div>
+            <details class="adam-table" id="adamChartTable">
+              <summary>Voir les valeurs jour par jour</summary>
+              <div class="table-scroll"><table><thead><tr><th>Date</th><th>Solde</th><th>Variation</th></tr></thead><tbody id="adamChartRows"></tbody></table></div>
+            </details>
+            <p class="hint adam-trend-note">Chaque jour : banques du jour − solde Euro de KANGA à cette date ± autres montants actuels.</p>
+          </div>
 
           <div class="adam-grid">
             <div class="panel adam-after">
@@ -554,11 +583,6 @@
 
           <div class="section-head"><h2>Mes comptes</h2></div>
           <div class="adam-banks" id="adamBanks"></div>
-
-          <div class="panel pad">
-            <div class="panel-title">Évolution du total de mes banques</div>
-            <div class="a-chart" id="adamChart"></div>
-          </div>
 
           <div class="panel pad">
             <div class="panel-title">Relier ou renouveler une banque</div>

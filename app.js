@@ -2446,6 +2446,7 @@ const ADAM_TYPES = { ITAV: 'disponible', CLAV: 'disponible', OPAV: 'disponible',
 const ADAM_UNLOCK_MS = 60 * 60 * 1000;        // déverrouillage retenu 1 h (prolongé à chaque utilisation)
 const ADAM_STALE_MS  = 60 * 60 * 1000;        // soldes de plus d'1 h : relus automatiquement à l'ouverture
 let adamOpen = false, adamData = null, adamLoadedAt = 0, adamEditing = null, adamPendingTimer = null;
+let adamSeries = { after: [], banks: [] }, adamChartMetric = 'after', adamChartDays = 30;
 
 function adamHash(s) { let h = 0x811c9dc5; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16); }
 function adamStore(k, v) { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
@@ -2624,6 +2625,120 @@ function adamHistTotal(h) {
   return Object.entries(h.byCur || {}).reduce((s, [c, v]) => { const e = adamToEur(v, c); return s + (e === null ? 0 : e); }, 0);
 }
 
+// ── Évolution : un point par jour relevé, le dernier point vaut toujours le chiffre affiché en haut ──
+// Solde après KANGA du jour = banques du jour − solde Euro KANGA à cette date ± autres montants actuels
+function adamBuildSeries(hist, banksNow, euroKangaNow, othersSum) {
+  const today = new Date().toISOString().slice(0, 10);
+  const moves = euroT.map(t => [t.date || '', (t.entree || 0) - (t.sortie || 0)]).sort((a, b) => a[0].localeCompare(b[0]));
+  const banks = [], after = [];
+  let i = 0, kanga = 0;
+  hist.forEach(h => {
+    while (i < moves.length && moves[i][0] <= h.d) kanga += moves[i++][1];
+    const b = adamHistTotal(h);
+    banks.push({ d: h.d, v: b });
+    after.push({ d: h.d, v: b - kanga + othersSum });
+  });
+  const pin = (arr, v) => {
+    const last = arr[arr.length - 1];
+    if (last && last.d === today) last.v = v; else arr.push({ d: today, v });
+  };
+  pin(banks, banksNow);
+  pin(after, banksNow - euroKangaNow + othersSum);
+  return { after, banks };
+}
+function adamDay(d) { return d.slice(8, 10) + '/' + d.slice(5, 7); }
+function adamMoveHTML(pts) {
+  if (pts.length < 2) return 'évolution visible dès demain';
+  const prev = pts[pts.length - 2], gap = pts[pts.length - 1].v - prev.v;
+  if (Math.abs(gap) < 0.005) return `stable depuis le ${adamDay(prev.d)}`;
+  return `<span class="${gap > 0 ? 'up' : 'down'}">${gap > 0 ? '▲ +' : '▼ −'}${fmtEuro(Math.abs(gap))}</span> depuis le ${adamDay(prev.d)}`;
+}
+function adamSetChart(metric, days) {
+  if (metric) adamChartMetric = metric;
+  if (days !== undefined) adamChartDays = days;
+  adamPaintChart();
+}
+function adamPaintChart() {
+  document.querySelectorAll('#adamMetricSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.m === adamChartMetric)));
+  document.querySelectorAll('#adamDaysSeg button').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.d) === adamChartDays)));
+  const from = adamChartDays ? new Date(Date.now() - adamChartDays * 864e5).toISOString().slice(0, 10) : '';
+  const pts = adamSeries[adamChartMetric].filter(p => p.d >= from);
+  const el = document.getElementById('adamChart'), stats = document.getElementById('adamChartStats');
+  const table = document.getElementById('adamChartTable');
+  table.style.display = pts.length >= 2 ? '' : 'none';
+  if (pts.length < 2) {
+    stats.innerHTML = '';
+    el.innerHTML = '<div class="a-empty">La courbe se remplira jour après jour, à chaque relevé automatique.</div>';
+    return;
+  }
+  const first = pts[0], last = pts[pts.length - 1], gap = last.v - first.v;
+  const hi = pts.reduce((a, p) => p.v > a.v ? p : a), lo = pts.reduce((a, p) => p.v < a.v ? p : a);
+  const stat = (label, value, sub, cls) => `<div class="adam-stat"><span>${label}</span><b class="adam-money ${cls || ''}">${value}</b><small>${sub}</small></div>`;
+  stats.innerHTML =
+    stat('Variation', (gap < 0 ? '▼ −' : '▲ +') + fmtEuro(Math.abs(gap)), `depuis le ${adamDay(first.d)}`, gap < 0 ? 'val-neg' : 'val-pos') +
+    stat('Plus haut', fmtEuro(hi.v), `le ${adamDay(hi.d)}`) +
+    stat('Plus bas', fmtEuro(lo.v), `le ${adamDay(lo.d)}`, lo.v < 0 ? 'val-neg' : '');
+  adamChartLine(el, pts);
+  document.getElementById('adamChartRows').innerHTML = pts.map((p, i) => {
+    const g = i ? p.v - pts[i - 1].v : null;
+    return `<tr><td>${adamDay(p.d)}</td><td class="adam-money">${fmtEuro(p.v)}</td><td class="adam-money">${g === null ? '—' : (g < 0 ? '−' : '+') + fmtEuro(Math.abs(g))}</td></tr>`;
+  }).reverse().join('');
+}
+
+// Courbe à une série, avec repère et bulle au survol ou au toucher
+function adamChartLine(el, pts) {
+  const W = Math.max(280, el.clientWidth || 700), H = W < 520 ? 220 : 280;
+  const L = 52, R = 14, T = 14, B = 26;
+  const vs = pts.map(p => p.v);
+  let lo = Math.min(...vs), hi = Math.max(...vs);
+  if (hi - lo < 1) { lo -= 1; hi += 1; }
+  const raw = (hi - lo) / 4, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map(k => k * mag).find(s => s >= raw);
+  const y0 = Math.floor(lo / step) * step, y1 = Math.ceil(hi / step) * step;
+  const t0 = Date.parse(pts[0].d), t1 = Date.parse(pts[pts.length - 1].d);
+  const x = d => L + (Date.parse(d) - t0) / ((t1 - t0) || 1) * (W - L - R);
+  const y = v => T + (1 - (v - y0) / (y1 - y0)) * (H - T - B);
+  let grid = '';
+  for (let v = y0, n = 0; v <= y1 + step / 2 && n < 12; v += step, n++) {
+    const isZero = Math.abs(v) < step / 1000, yy = y(v).toFixed(1);
+    grid += `<line x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}" class="${isZero ? 'adam-zero' : 'a-grid'}"/><text x="${L - 8}" y="${+yy + 4}" text-anchor="end" class="a-axis">${aShort(isZero ? 0 : v)}</text>`;
+  }
+  const line = pts.map((p, i) => `${i ? 'L' : 'M'}${x(p.d).toFixed(1)},${y(p.v).toFixed(1)}`).join(' ');
+  const base = y(Math.min(Math.max(0, y0), y1)).toFixed(1);
+  const area = `${line} L${x(pts[pts.length - 1].d).toFixed(1)},${base} L${x(pts[0].d).toFixed(1)},${base} Z`;
+  const nLabels = Math.min(pts.length, W < 520 ? 3 : 6);
+  const xl = Array.from({ length: nLabels }, (_, k) => pts[Math.round(k * (pts.length - 1) / (nLabels - 1))])
+    .map((p, k) => `<text x="${x(p.d).toFixed(1)}" y="${H - 6}" text-anchor="${k === 0 ? 'start' : k === nLabels - 1 ? 'end' : 'middle'}" class="a-axis">${adamDay(p.d)}</text>`).join('');
+  const end = pts[pts.length - 1];
+  el.innerHTML = `<svg width="${W}" height="${H}" class="a-svg adam-svg" role="img" aria-label="Évolution sur ${pts.length} relevés, de ${fmtEuro(pts[0].v)} à ${fmtEuro(end.v)}">
+    <defs><linearGradient id="adamGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--brand)" stop-opacity=".22"/><stop offset="1" stop-color="var(--brand)" stop-opacity=".02"/></linearGradient></defs>
+    ${grid}<path d="${area}" fill="url(#adamGrad)"/>
+    <path d="${line}" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${x(end.d).toFixed(1)}" cy="${y(end.v).toFixed(1)}" r="5" fill="var(--brand)" stroke="var(--surface-solid)" stroke-width="2"/>
+    ${xl}
+    <g class="adam-cross" style="display:none"><line y1="${T}" y2="${H - B}" class="adam-cross-line"/><circle r="5" fill="var(--brand)" stroke="var(--surface-solid)" stroke-width="2"/></g>
+  </svg><div class="adam-tip adam-money" style="display:none"></div>`;
+
+  const svg = el.querySelector('svg'), cross = el.querySelector('.adam-cross'), tip = el.querySelector('.adam-tip');
+  const vline = cross.querySelector('line'), dot = cross.querySelector('circle');
+  const show = e => {
+    const mx = e.clientX - svg.getBoundingClientRect().left;
+    const i = pts.reduce((best, p, k) => Math.abs(x(p.d) - mx) < Math.abs(x(pts[best].d) - mx) ? k : best, 0);
+    const p = pts[i], px = x(p.d), py = y(p.v), g = i ? p.v - pts[i - 1].v : null;
+    vline.setAttribute('x1', px); vline.setAttribute('x2', px);
+    dot.setAttribute('cx', px); dot.setAttribute('cy', py);
+    cross.style.display = '';
+    tip.innerHTML = `<small>${adamDay(p.d)}</small><b>${fmtEuro(p.v)}</b>${g === null ? '' : `<small>${g < 0 ? '−' : '+'}${fmtEuro(Math.abs(g))} depuis le ${adamDay(pts[i - 1].d)}</small>`}`;
+    tip.style.display = '';
+    tip.style.left = Math.min(Math.max(px, 72), W - 72) + 'px';
+    tip.style.top = Math.max(0, py - 76) + 'px';
+  };
+  const hide = () => { cross.style.display = 'none'; tip.style.display = 'none'; };
+  svg.addEventListener('pointermove', show);
+  svg.addEventListener('pointerdown', show);
+  svg.addEventListener('pointerleave', hide);
+}
+
 // ── Affichage complet ──
 function adamPaint() {
   const d = adamData;
@@ -2658,7 +2773,7 @@ function adamPaint() {
       : daysLeft <= 15
         ? `<span class="badge badge-suivi-late">Expire dans ${daysLeft} j</span>`
         : `<span class="adam-valid">Accès jusqu'au ${new Date(b.valid_until).toLocaleDateString('fr-FR')}</span>`;
-    return `<div class="adam-bank">
+    return `<div class="adam-bank" style="--bank:${colorOf(b.name)}">
       <div class="adam-bank-head">
         <span class="adam-logo" style="background:${colorOf(b.name)}">${esc(b.name.charAt(0))}</span>
         <div class="adam-bank-title"><b>${esc(b.name)}</b>${consent}</div>
@@ -2681,11 +2796,13 @@ function adamPaint() {
   document.getElementById('adamTotal').textContent = fmtEuro(total);
   document.getElementById('adamEuroKanga').textContent = fmtEuro(euroKanga);
   document.getElementById('adamEuroCount').textContent = `${euroT.length} transactions Euro`;
-  const hist = d.history || [];
-  const prev = hist.length >= 2 ? adamHistTotal(hist[hist.length - 2]) : null;
-  const delta = prev === null ? null : total - prev;
-  document.getElementById('adamDelta').innerHTML = delta === null ? 'évolution visible dès demain'
-    : `<span class="${delta >= 0 ? 'up' : 'down'}">${delta >= 0 ? '▲ +' : '▼ '}${fmtEuro(delta)}</span> depuis le ${new Date(hist[hist.length - 2].d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}`;
+  const othersSum = after - total + euroKanga;
+  const nOthers = (((d.settings || {}).others) || []).length;
+  document.getElementById('adamOthersTotal').textContent = (othersSum < 0 ? '− ' : '+ ') + fmtEuro(Math.abs(othersSum));
+  document.getElementById('adamOthersCount').textContent = nOthers ? `${nOthers} ligne${nOthers > 1 ? 's' : ''}` : 'aucune ligne';
+  adamSeries = adamBuildSeries(d.history || [], total, euroKanga, othersSum);
+  document.getElementById('adamDelta').innerHTML = adamMoveHTML(adamSeries.banks);
+  document.getElementById('adamAfterDelta').innerHTML = adamMoveHTML(adamSeries.after);
   const otherTxt = Object.entries(others).map(([c, v]) => adamMoney(v, c)).join(' + ');
   document.getElementById('adamSub').textContent =
     `${d.banks.length} banque${d.banks.length > 1 ? 's' : ''} · ${nAcc} compte${nAcc > 1 ? 's' : ''} · relevé ${adamAgo(d.refreshedAt)}` +
@@ -2699,12 +2816,7 @@ function adamPaint() {
     + (perBank.some(p => p.value < 0) ? `<div class="adam-neg-note">Comptes à découvert non inclus : ${perBank.filter(p => p.value < 0).map(p => esc(p.name) + ' ' + fmtEuro(p.value)).join(', ')}</div>` : '')
     : '<div class="a-empty">Aucun solde positif à répartir.</div>';
 
-  // courbe : un point par jour, total converti en €
-  const pts = hist.map(h => ({ d: h.d, v: adamHistTotal(h) }));
-  const chart = document.getElementById('adamChart');
-  if (pts.length >= 2) aChartBalance(chart, pts, fmtEuro);
-  else chart.innerHTML = '<div class="a-empty">La courbe se remplira jour après jour, à chaque relevé automatique.</div>';
-
+  adamPaintChart();
   adamPaintNotice();
   adamPaintLinks();
 }
@@ -2722,12 +2834,12 @@ function adamPaintAfter(banksTotal, euroKanga) {
   document.getElementById('adamCalc').innerHTML =
     line('Total de mes banques', banksTotal, '') +
     line('Solde Euro de KANGA', -euroKanga, `${euroT.length} transactions Euro`) +
-    others.map(o => line(esc(o.label), sign(o), 'autre montant · ' + adamAgo(o.at))).join('') +
+    (others.length ? line('Autres montants', others.reduce((s, o) => s + sign(o), 0), `${others.length} ligne${others.length > 1 ? 's' : ''}, détail ci-dessous`) : '') +
     `<div class="adam-calc-row total"><span>Solde après KANGA</span><b class="adam-money ${after < 0 ? 'val-neg' : 'val-pos'}">${fmtEuro(after)}</b></div>`;
 
   document.getElementById('adamOthers').innerHTML = others.length ? others.map(o => `<div class="adam-other${adamEditing === o.id ? ' editing' : ''}">
       <span class="badge ${o.op === '+' ? 'badge-in' : 'badge-out'}">${o.op === '+' ? 'À ajouter' : 'À retirer'}</span>
-      <span class="adam-other-label">${esc(o.label)}</span>
+      <span class="adam-other-label">${esc(o.label)}<small>${adamAgo(o.at)}</small></span>
       <b class="adam-money">${fmtEuro(Number(o.amount) || 0)}</b>
       <button class="act-btn" onclick="adamEditOther('${esc(o.id)}')" title="Modifier">${svgIc('edit')}</button>
       <button class="act-btn act-del" onclick="adamDeleteOther('${esc(o.id)}')" title="Supprimer">${svgIc('trash')}</button>
@@ -2884,7 +2996,10 @@ window.addEventListener('resize', () => {
   if (window.innerWidth === aLastWidth) return;   // sur téléphone, la barre d'adresse change seulement la hauteur
   aLastWidth = window.innerWidth;
   clearTimeout(aResizeTimer);
-  aResizeTimer = setTimeout(() => { if (currentTab === 'analytics') renderAnalytics(); }, 250);
+  aResizeTimer = setTimeout(() => {
+    if (currentTab === 'analytics') renderAnalytics();
+    if (currentTab === 'adam' && adamOpen && adamData) adamPaintChart();
+  }, 250);
 });
 
 // Fenêtres : clic sur le fond ou touche Échap pour fermer (sauf la demande de code)
