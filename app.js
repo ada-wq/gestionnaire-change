@@ -2469,6 +2469,7 @@ function adamRender() {
   document.getElementById('adamTokenRow').style.display = adamToken() ? 'none' : '';
   adamApplyHide();
   if (adamOpen) {
+    adamNotesStart();
     adamPaint();
     if (!adamData || Date.now() - adamLoadedAt > 5 * 60 * 1000) adamLoad(false);
   } else setTimeout(() => document.getElementById('adamPin').focus(), 80);
@@ -2494,6 +2495,7 @@ function adamUnlock(e) {
 }
 function adamLock(silent) {
   adamOpen = false; adamData = null;
+  adamNotesStop();
   adamStore('kanga_adam_until', null);
   clearTimeout(adamPendingTimer);
   ['adamBanks', 'adamCalc', 'adamOthers', 'adamDonut', 'adamNotice'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
@@ -2936,6 +2938,167 @@ function adamDeleteOther(id) {
   if (!item || !confirm(`Supprimer « ${item.label} » ?`)) return;
   if (adamEditing === id) adamCancelEdit();
   adamSaveOthers(list.filter(o => o.id !== id), `« ${item.label} » supprimé`);
+}
+
+// ── Notes privées de l'Espace Adam ──
+// Chiffrées sur l'appareil (AES-GCM, clé tirée du mot de passe du serveur ADAM_TOKEN) :
+// Firebase, lisible par tous, ne reçoit que du texte chiffré.
+const ADAM_NOTES_PATH = 'adamNotes';
+let adamNotes = [], adamNotesBad = 0, adamNotesOn = false, adamNotesSeq = 0;
+let adamNotesKey = null, adamNotesKeyFor = '', adamNoteCur = null, adamNoteTimer = null;
+
+function adamB64(buf) {
+  const u = new Uint8Array(buf); let s = '';
+  for (let i = 0; i < u.length; i += 8192) s += String.fromCharCode.apply(null, u.subarray(i, i + 8192));
+  return btoa(s);
+}
+function adamUnB64(s) { return Uint8Array.from(atob(s), c => c.charCodeAt(0)); }
+async function adamNotesCryptoKey() {
+  const tok = adamToken();
+  if (!tok) throw new Error('mot de passe du serveur absent');
+  if (adamNotesKey && adamNotesKeyFor === tok) return adamNotesKey;
+  const enc = new TextEncoder();
+  const base = await crypto.subtle.importKey('raw', enc.encode(tok), 'PBKDF2', false, ['deriveKey']);
+  adamNotesKey = await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: enc.encode('kanga-espace-adam-notes'), iterations: 200000, hash: 'SHA-256' },
+    base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  adamNotesKeyFor = tok;
+  return adamNotesKey;
+}
+async function adamSeal(obj) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await adamNotesCryptoKey(), new TextEncoder().encode(JSON.stringify(obj)));
+  return { iv: adamB64(iv), data: adamB64(data) };
+}
+async function adamUnseal(rec) {
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: adamUnB64(rec.iv) }, await adamNotesCryptoKey(), adamUnB64(rec.data));
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+
+function adamNotesStart() {
+  if (adamNotesOn || !adamToken()) return;
+  adamNotesOn = true;
+  db.ref(ADAM_NOTES_PATH).on('value', adamNotesSnap);
+}
+function adamNotesStop() {
+  if (adamNotesOn) db.ref(ADAM_NOTES_PATH).off('value', adamNotesSnap);
+  adamNotesOn = false; adamNotesSeq++;
+  clearTimeout(adamNoteTimer); adamNoteTimer = null;
+  adamNotes = []; adamNotesBad = 0; adamNoteCur = null; adamNotesKey = null; adamNotesKeyFor = '';
+  ['anTitle', 'anBody', 'anSearch'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const list = document.getElementById('anList'); if (list) list.innerHTML = '';
+  adamNoteShowEditor(false);
+}
+async function adamNotesSnap(s) {
+  const seq = ++adamNotesSeq;
+  const out = []; let bad = 0;
+  for (const [id, r] of Object.entries(s.val() || {})) {
+    if (!r || !r.iv || !r.data) continue;
+    try {
+      const o = await adamUnseal(r);
+      out.push({ id, title: String(o.title || ''), content: String(o.content || ''), createdAt: r.createdAt, updatedAt: r.updatedAt });
+    } catch (e) { bad++; }
+  }
+  if (seq !== adamNotesSeq || !adamOpen) return;
+  // une saisie pas encore envoyée garde la priorité sur la version reçue
+  const mine = adamNoteTimer && adamNotes.find(n => n.id === adamNoteCur);
+  if (mine) { const i = out.findIndex(n => n.id === mine.id); if (i >= 0) out[i] = mine; else out.push(mine); }
+  adamNotes = out.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+  adamNotesBad = bad;
+  adamNotesRenderList();
+  if (adamNoteCur && !adamNoteTimer) {
+    const n = adamNotes.find(x => x.id === adamNoteCur);
+    const t = document.getElementById('anTitle'), b = document.getElementById('anBody');
+    if (!n) adamNoteClose();
+    else if (document.activeElement !== t && document.activeElement !== b && (t.value !== n.title || b.value !== n.content)) {
+      t.value = n.title; b.value = n.content; adamNoteStatus(n);
+    }
+  }
+}
+
+function adamNotesRenderList() {
+  const el = document.getElementById('anList');
+  if (!el) return;
+  const q = document.getElementById('anSearch').value.toLowerCase();
+  const shown = adamNotes.filter(n => !q || n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q));
+  const warn = adamNotesBad ? `<div class="adam-notes-warn">${adamNotesBad} note${adamNotesBad > 1 ? 's' : ''} illisible${adamNotesBad > 1 ? 's' : ''} : chiffrée${adamNotesBad > 1 ? 's' : ''} avec un autre mot de passe du serveur.</div>` : '';
+  el.innerHTML = warn + (shown.length ? shown.map(n => `
+    <div class="note-item ${n.id === adamNoteCur ? 'active' : ''}" onclick="adamNoteOpen('${esc(n.id)}')">
+      <div class="ni-title">${esc(n.title) || 'Sans titre'}</div>
+      <div class="ni-preview">${esc(n.content.replace(/\n/g, ' ').slice(0, 55)) || 'Note vide'}</div>
+      <div class="ni-date">${new Date(n.updatedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</div>
+    </div>`).join('') : `<div class="note-empty">${q ? 'Aucune note trouvée' : 'Aucune note privée pour l\'instant'}</div>`);
+}
+function adamNoteShowEditor(show) {
+  const ed = document.getElementById('anEditor');
+  if (!ed) return;
+  ed.style.display = show ? 'flex' : 'none';
+  document.getElementById('anEmpty').style.display = show ? 'none' : 'flex';
+  document.getElementById('anLayout').classList.toggle('editing', show);
+}
+function adamNoteStatus(n) {
+  document.getElementById('anDate').textContent = 'Créée le ' + new Date(n.createdAt).toLocaleDateString('fr-FR');
+  document.getElementById('anStatus').textContent = 'Modifiée ' + new Date(n.updatedAt).toLocaleString('fr-FR');
+}
+async function adamNoteSave(n) {
+  try {
+    const sealed = await adamSeal({ title: n.title, content: n.content });
+    await db.ref(ADAM_NOTES_PATH + '/' + n.id).set({ ...sealed, createdAt: n.createdAt, updatedAt: n.updatedAt });
+    return true;
+  } catch (e) { toast('Note non enregistrée : ' + e.message, 'err'); return false; }
+}
+function adamNoteNew() {
+  const now = new Date().toISOString();
+  const n = { id: genId(), title: '', content: '', createdAt: now, updatedAt: now };
+  adamNotes.unshift(n);
+  adamNoteOpen(n.id);
+  adamNoteSave(n);
+}
+function adamNoteOpen(id) {
+  const n = adamNotes.find(x => x.id === id);
+  if (!n) return;
+  adamNoteCur = id;
+  document.getElementById('anTitle').value = n.title;
+  document.getElementById('anBody').value = n.content;
+  adamNoteStatus(n);
+  adamNoteShowEditor(true);
+  adamNotesRenderList();
+  if (!n.title && !n.content) setTimeout(() => document.getElementById('anTitle').focus(), 80);
+}
+function adamNoteClose() {
+  adamNoteCur = null;
+  adamNoteShowEditor(false);
+  adamNotesRenderList();
+}
+function adamNotesBack() {
+  document.getElementById('anLayout').classList.remove('editing');
+  adamNotesRenderList();
+}
+function adamNoteInput() {
+  const n = adamNotes.find(x => x.id === adamNoteCur);
+  if (!n) return;
+  n.title = document.getElementById('anTitle').value;
+  n.content = document.getElementById('anBody').value;
+  n.updatedAt = new Date().toISOString();
+  document.getElementById('anStatus').textContent = 'Enregistrement…';
+  clearTimeout(adamNoteTimer);
+  const timer = setTimeout(async () => {
+    const ok = await adamNoteSave(n);
+    if (adamNoteTimer === timer) adamNoteTimer = null;
+    if (adamNoteCur === n.id) document.getElementById('anStatus').textContent = ok ? 'Enregistré (chiffré)' : 'Erreur d\'enregistrement';
+    adamNotesRenderList();
+    adamTouch();
+  }, 700);
+  adamNoteTimer = timer;
+}
+function adamNoteDelete() {
+  const n = adamNotes.find(x => x.id === adamNoteCur);
+  if (!n || !confirm('Supprimer cette note ?')) return;
+  clearTimeout(adamNoteTimer); adamNoteTimer = null;
+  adamNotes = adamNotes.filter(x => x.id !== n.id);
+  db.ref(ADAM_NOTES_PATH + '/' + n.id).remove().catch(() => toast('Erreur de synchronisation', 'err'));
+  adamNoteClose();
+  toast('Note supprimée', '', () => { adamNotes.unshift(n); adamNoteSave(n); adamNotesRenderList(); toast('Suppression annulée', 'ok'); });
 }
 
 // ── Messages : liaison en cours d'enregistrement, accès bientôt expirés ──

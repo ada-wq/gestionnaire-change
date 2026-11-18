@@ -1170,6 +1170,16 @@ th { color:var(--brand-text); }
 .adam-bank { border-top:3px solid var(--bank); }
 .adam-bank-head { background:linear-gradient(90deg,color-mix(in srgb,var(--bank) 10%,transparent),transparent 75%); }
 .adam-bank-title .badge { align-self:flex-start; }
+
+/* Espace Adam : notes privées (même présentation que l'onglet Notes) */
+.adam-notes { margin-bottom:24px; }
+.adam-notes .notes-list-panel, .adam-notes .notes-editor-panel { height:460px; min-height:0; max-height:none; }
+.adam-notes-lock { display:inline-flex; align-items:center; gap:5px; font-size:.74rem; color:var(--text3); }
+.adam-notes-lock .ic { width:13px; height:13px; }
+.adam-notes-warn { padding:10px 16px; font-size:.76rem; color:var(--amber); background:var(--amber-dim); border-bottom:1px solid var(--border); }
+@media (max-width: 860px) {
+  .adam-notes .notes-list-panel, .adam-notes .notes-editor-panel { height:70dvh; min-height:340px; }
+}
 .adam-hidden .adam-neg-note { filter:blur(8px); user-select:none; }
 .adam-acc:last-of-type { border-bottom:none; }
 .adam-other-label small { display:block; font-size:.72rem; font-weight:400; color:var(--text3); }

@@ -581,6 +581,33 @@
             </div>
           </div>
 
+          <div class="section-head">
+            <h2>Mes notes privées</h2>
+            <span class="adam-notes-lock"><svg class="ic"><use href="#i-lock"/></svg>Chiffrées sur l'appareil</span>
+          </div>
+          <div class="notes-layout adam-notes" id="anLayout">
+            <div class="notes-list-panel">
+              <div class="nlp-head">
+                <h3>Notes</h3>
+                <button class="btn btn-sm btn-primary" onclick="adamNoteNew()"><svg class="ic"><use href="#i-plus"/></svg>Nouvelle</button>
+              </div>
+              <div class="notes-search"><input type="text" id="anSearch" placeholder="Rechercher…" oninput="adamNotesRenderList()"></div>
+              <div class="notes-list" id="anList"><div class="note-empty">Chargement…</div></div>
+            </div>
+            <div class="notes-editor-panel">
+              <div class="ne-empty" id="anEmpty"><svg class="ic"><use href="#i-notes"/></svg><p>Notes visibles uniquement ici, dans l'Espace Adam.</p></div>
+              <div id="anEditor" style="display:none;flex-direction:column;flex:1;">
+                <div class="ne-toolbar">
+                  <button class="icon-btn ne-back" onclick="adamNotesBack()" title="Retour aux notes"><svg class="ic" style="transform:rotate(180deg)"><use href="#i-chevron"/></svg></button>
+                  <input type="text" class="ne-title" id="anTitle" placeholder="Titre" oninput="adamNoteInput()">
+                  <button class="btn btn-sm btn-danger" onclick="adamNoteDelete()" title="Supprimer la note"><svg class="ic"><use href="#i-trash"/></svg><span class="ne-del-txt">Supprimer</span></button>
+                </div>
+                <textarea class="ne-body" id="anBody" placeholder="Écrivez ici…" oninput="adamNoteInput()"></textarea>
+                <div class="ne-status"><span id="anDate">—</span><span id="anStatus">—</span></div>
+              </div>
+            </div>
+          </div>
+
           <div class="section-head"><h2>Mes comptes</h2></div>
           <div class="adam-banks" id="adamBanks"></div>
 
