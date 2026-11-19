@@ -2248,6 +2248,46 @@ async function aiAsk(key, messages) {
   return aiPost(key, body);
 }
 
+// Petite tâche (lire une phrase) : modèles « Flash-Lite » d'abord, réflexion minimale, 10 s maximum par
+// modèle. Les grands modèles Flash sont souvent saturés et peuvent mettre plus d'une minute à répondre.
+async function aiQuick(key, req) {
+  await aiModels(key);
+  const all = aiModelList || AI_FALLBACK_MODELS;
+  const lite = all.filter(m => /-flash-lite$/.test(m)), flash = all.filter(m => !/-flash-lite$/.test(m));
+  let last = ''; try { last = localStorage.getItem('kanga_gemini_quick') || ''; } catch (e) {}
+  const order = [...(last && all.includes(last) ? [last] : []), ...lite, ...flash.slice(0, 1)].filter((m, i, a) => a.indexOf(m) === i).slice(0, 4);
+  let lastMsg = '';
+  for (const model of order) {
+    const think = aiVersion(model) >= 3.5 ? { thinkingLevel: 'minimal' } : { thinkingBudget: 0 };
+    for (const withThink of [true, false]) {
+      const body = JSON.stringify({ ...req, generationConfig: { ...(req.generationConfig || {}), ...(withThink ? { thinkingConfig: think } : {}) } });
+      const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 10000);
+      let r, j;
+      try {
+        r = await fetch(`${AI_API}/models/${model}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body, signal: ctl.signal });
+        j = await r.json().catch(() => ({}));
+      } catch (e) {
+        clearTimeout(timer);
+        if (e.name === 'AbortError') { lastMsg = model + ' trop lent'; break; }
+        throw new Error('Pas de connexion internet : Gemini a besoin du réseau.');
+      }
+      clearTimeout(timer);
+      if (r.ok) {
+        const cand = (j.candidates || [])[0] || {};
+        const text = ((cand.content || {}).parts || []).filter(p => !p.thought).map(p => p.text || '').join('').trim();
+        if (text) { try { localStorage.setItem('kanga_gemini_quick', model); } catch (e) {} return text; }
+        lastMsg = 'réponse vide'; break;
+      }
+      lastMsg = (j.error && j.error.message) || ('HTTP ' + r.status);
+      if (r.status === 400 && /api key/i.test(lastMsg)) throw new Error('Clé invalide. Vérifiez-la dans « Clé Gemini ».');
+      if (r.status === 403) throw new Error('Clé refusée par Google : ' + lastMsg);
+      if (r.status === 400 && withThink) continue;  // réglage de réflexion refusé par ce modèle : sans réglage
+      break;                                         // saturé, quota, modèle retiré : modèle suivant
+    }
+  }
+  throw new Error('Gemini ne répond pas pour le moment (' + lastMsg + '). Remplissez les champs vous-même.');
+}
+
 // Envoie une requête à Gemini en essayant les modèles disponibles ; renvoie le texte de la réponse.
 async function aiPost(key, body) {
   // Modèle saturé (503/500), quota du modèle atteint (429) ou modèle retiré (404) :
@@ -3259,6 +3299,7 @@ function aaOpen() {
   aaCalc();
   document.getElementById('aaModal').classList.add('open');
   setTimeout(() => document.getElementById('aaPhrase').focus(), 80);
+  if (aiKey()) aiModels(aiKey()).catch(() => {});  // liste des modèles chargée pendant la saisie
 }
 function aaClose() { closeModal('aaModal'); }
 // Montants signés selon le sens : CFA reçus par Abbas = € payés par Adam, et inversement
@@ -3332,17 +3373,24 @@ async function aaUnderstand() {
   const btn = document.getElementById('aaAiBtn');
   btn.disabled = true; btn.textContent = 'Analyse…';
   const system = `Tu lis une opération de change entre Adam (en France, il paie ou reçoit des euros) et Abbas (au Tchad, il paie ou reçoit des francs CFA).
+C'est Adam qui écrit : « je », « j'ai », « moi », « m' » = Adam.
 Réponds uniquement en JSON : {"nom": string, "taux": number|null, "sens": "cfa"|"eur"|"autre", "cfa": number|null, "eur": number|null}
-- "cfa" : le client donne des CFA à Abbas et Adam paie des euros.
-- "eur" : le client donne des euros à Adam et Abbas paie des CFA.
-- "autre" : tout le reste (par exemple un bénéfice reçu en CFA seulement) ; alors cfa et eur sont signés (+ reçu, − payé), 0 si absent.
+Choisis le sens d'après les EUROS d'Adam :
+- "cfa" : Adam PAIE / donne / envoie / verse des euros (et le client a donné des CFA à Abbas). Sans précision, un montant en CFA donné ou reçu par Abbas = "cfa".
+- "eur" : Adam REÇOIT des euros (le client lui donne / envoie des euros) et Abbas paie des CFA.
+- "autre" : seulement s'il n'y a qu'un côté sans échange (par exemple un bénéfice reçu en CFA) ; alors cfa et eur sont signés (+ reçu, − payé), 0 si absent.
 - Pour "cfa" et "eur", montants positifs. Si un seul montant est donné avec le taux, calcule l'autre (CFA = euros × taux), CFA arrondis à l'unité, euros au centime.
 - "nom" : le nom du client ou de l'opération, sans Adam ni Abbas.
-- Les montants peuvent s'écrire « 700 000 », « 700.000 », « 1000,50 », « 700k » (= 700 000), « 1,2 million » (= 1 200 000).`;
+- Les montants peuvent s'écrire « 700 000 », « 700.000 », « 1.360.000 », « 1000,50 », « 700k » (= 700 000), « 1,2 million » (= 1 200 000).
+Exemples :
+« Mahamat a donné 700 000 CFA à Abbas à 700, j'ai payé 1 000 € » → {"nom":"Mahamat","taux":700,"sens":"cfa","cfa":700000,"eur":1000}
+« j'ai payé 2000 € pour Faris qui a donné 1.360.000 à Abbas » → {"nom":"Faris","taux":680,"sens":"cfa","cfa":1360000,"eur":2000}
+« Ali m'a donné 1500 euros, Abbas a payé à 680 » → {"nom":"Ali","taux":680,"sens":"eur","cfa":1020000,"eur":1500}
+« Nabil 4 581 500 cfa taux 700 » → {"nom":"Nabil","taux":700,"sens":"cfa","cfa":4581500,"eur":6545}
+« bénéfice Londres 103000 cfa chez Abbas » → {"nom":"Londres","taux":null,"sens":"autre","cfa":103000,"eur":0}`;
   try {
-    const body = JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: phrase }] }],
+    const txt = await aiQuick(key, { systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: phrase }] }],
       generationConfig: { responseMimeType: 'application/json', temperature: 0 } });
-    const txt = await aiPost(key, body);
     const o = JSON.parse(txt.replace(/^```(?:json)?\s*|\s*```$/g, ''));
     const dir = o.sens === 'eur' ? 'eur' : o.sens === 'autre' ? 'free' : 'cfa';
     document.getElementById('aaDir').value = dir;
