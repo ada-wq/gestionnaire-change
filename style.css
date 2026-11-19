@@ -1185,6 +1185,10 @@ th { color:var(--brand-text); }
 .aa-btns { display:flex; gap:8px; align-items:center; flex-shrink:0; }
 .aa-kpis { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:12px; }
 .aa-kpi-ben { border-color:var(--green, #12b76a); }
+.aa-split { margin-top:8px; padding-top:6px; border-top:1px dashed var(--border); font-size:.74rem; }
+.aa-split > div { display:flex; justify-content:space-between; gap:8px; padding:2px 0; }
+.aa-kpi .aa-split span { display:inline; margin:0; font-size:.74rem; color:var(--text3); }
+.aa-kpi .aa-split b { display:inline; font-size:.78rem; font-weight:600; overflow:visible; }
 @media (max-width: 1100px) { .aa-kpis { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
 .aa-kpi { padding:12px 14px; border:1px solid var(--border); border-radius:12px; background:var(--surface2); min-width:0; }
 .aa-kpi span { display:block; font-size:.76rem; color:var(--text3); margin-bottom:4px; }
@@ -1206,6 +1210,8 @@ th { color:var(--brand-text); }
   .aa-kpi span { margin:0; }
   .aa-kpi b { text-align:right; }
   .aa-kpi small { grid-column:1 / -1; text-align:right; margin:0; }
+  .aa-split { grid-column:1 / -1; }
+  .aa-kpi .aa-split b { text-align:right; }
   .aa-phrase { flex-direction:column; }
 }
 /* Police à chasse fixe : les tableaux en colonnes restent alignés (comme dans WhatsApp) */

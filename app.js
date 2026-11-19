@@ -3272,7 +3272,12 @@ function aaRender() {
   const written = aaApply(n.content, null).text !== n.content;
   const owed = -p.adam;
   box.innerHTML = `
-    <div class="aa-kpi"><span>Abbas a</span><b class="adam-money">${aaFr(p.abbas, 0)} CFA</b><small>${p.sec.abbas ? p.sec.abbas.items.length : 0} lignes</small></div>
+    ${(() => {
+      const avance = Math.round(-p.adam * AA_RATE), ben = p.abbas - p.start - avance;
+      const row = (label, v, cls) => `<div><span>${label}</span><b class="adam-money ${cls || ''}">${aaFr(v, 0)}</b></div>`;
+      return `<div class="aa-kpi"><span>Abbas a</span><b class="adam-money">${aaFr(p.abbas, 0)} CFA</b>
+        <div class="aa-split">${row('Solde KANGA', p.start)}${row(avance >= 0 ? 'Avance d\'Adam' : 'Euros reçus par Adam', avance)}${row('Bénéfice', ben, ben < 0 ? 'val-neg' : 'val-pos')}</div></div>`;
+    })()}
     <div class="aa-kpi"><span>Adam a</span><b class="adam-money ${p.adam < 0 ? 'val-neg' : ''}">${aaFr(p.adam, 2)} €</b><small>${p.sec.adam ? p.sec.adam.items.length : 0} lignes</small></div>
     <div class="aa-kpi"><span>${owed >= 0 ? 'Abbas me doit' : 'Je dois à Abbas'}</span><b class="adam-money ${owed >= 0 ? 'val-pos' : 'val-neg'}">${aaFr(Math.abs(owed), 2)} €</b><small>${aaFr(Math.round(Math.abs(owed) * AA_RATE), 0)} CFA à ${AA_RATE}</small></div>
     ${(() => { const ben = aaBenefit(p); return `<div class="aa-kpi aa-kpi-ben" title="(Abbas a − Solde KANGA ${aaFr(p.start, 0)}) + Adam a × ${AA_RATE}"><span>Bénéfice (chez Abbas)</span><b class="adam-money ${ben < 0 ? 'val-neg' : 'val-pos'}">${aaFr(ben, 0)} CFA</b><small>${aaFr(ben / AA_RATE, 2)} € · moitié chacun ${aaFr(Math.floor(ben / 2), 0)} CFA</small></div>`; })()}`;
