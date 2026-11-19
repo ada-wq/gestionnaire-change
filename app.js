@@ -3151,9 +3151,10 @@ function adamNoteDelete() {
 // ── Opérations Adam / Abbas ──
 // La note privée « OPÉRATIONS ADAM / ABBAS » reste la référence : on la relit, on y ajoute les deux
 // lignes de l'opération (CFA chez Abbas, € chez Adam), on recalcule « ABBAS A » et « ADAM A », puis
-// la ligne « Abbas me doit » des autres montants suit le total d'Adam (Adam part de zéro).
+// la ligne « Opérations hors KANGA » des autres montants suit le total d'Adam (Adam part de zéro).
 const AA_TITLE = 'OPÉRATIONS ADAM / ABBAS';
 const AA_OTHER_ID = 'adam-abbas';
+const AA_OTHER_LABEL = 'Opérations hors KANGA';
 const AA_DASH = '-'.repeat(32);
 let aaEdited = '';
 
@@ -3236,18 +3237,18 @@ function aaNote() {
 // Ligne des autres montants qui suit l'opération : Adam à −X € → Abbas lui doit X € (à ajouter)
 function aaOtherFor(adamTotal) {
   const owed = adamTotal <= 0;
-  return { id: AA_OTHER_ID, label: owed ? 'Abbas me doit (avance)' : 'Je dois à Abbas', amount: Math.round(Math.abs(adamTotal) * 100) / 100, op: owed ? '+' : '-' };
+  return { id: AA_OTHER_ID, label: AA_OTHER_LABEL, amount: Math.round(Math.abs(adamTotal) * 100) / 100, op: owed ? '+' : '-' };
 }
 function aaOtherIndex(list) {
   const i = list.findIndex(o => o.id === AA_OTHER_ID);
-  return i >= 0 ? i : list.findIndex(o => /adam\s*\/\s*abbas|abbas me doit|je dois [àa] abbas/i.test(o.label || ''));
+  return i >= 0 ? i : list.findIndex(o => /adam\s*\/\s*abbas|abbas me doit|je dois [àa] abbas|op[ée]rations hors kanga/i.test(o.label || ''));
 }
 function aaOtherOk(adamTotal) {
   const list = (((adamData || {}).settings || {}).others || []);
   const i = aaOtherIndex(list), want = aaOtherFor(adamTotal);
   if (i < 0) return !want.amount;
   const o = list[i];
-  return o.id === want.id && Math.abs((Number(o.amount) || 0) - want.amount) < 0.005 && (o.op === '+' ? '+' : '-') === want.op;
+  return o.id === want.id && o.label === want.label && Math.abs((Number(o.amount) || 0) - want.amount) < 0.005 && (o.op === '+' ? '+' : '-') === want.op;
 }
 async function aaSyncOther(adamTotal) {
   if (!adamData || aaOtherOk(adamTotal)) return true;
@@ -3276,14 +3277,14 @@ function aaRender() {
       const avance = Math.round(-p.adam * AA_RATE), ben = p.abbas - p.start - avance;
       const row = (label, v, cls) => `<div><span>${label}</span><b class="adam-money ${cls || ''}">${aaFr(v, 0)}</b></div>`;
       return `<div class="aa-kpi"><span>Abbas a</span><b class="adam-money">${aaFr(p.abbas, 0)} CFA</b>
-        <div class="aa-split">${row('Solde KANGA', p.start)}${row(avance >= 0 ? 'Avance d\'Adam' : 'Euros reçus par Adam', avance)}${row('Bénéfice', ben, ben < 0 ? 'val-neg' : 'val-pos')}</div></div>`;
+        <div class="aa-split">${row('Solde KANGA', p.start)}${row(AA_OTHER_LABEL, avance)}${row('Bénéfice', ben, ben < 0 ? 'val-neg' : 'val-pos')}</div></div>`;
     })()}
     <div class="aa-kpi"><span>Adam a</span><b class="adam-money ${p.adam < 0 ? 'val-neg' : ''}">${aaFr(p.adam, 2)} €</b><small>${p.sec.adam ? p.sec.adam.items.length : 0} lignes</small></div>
-    <div class="aa-kpi"><span>${owed >= 0 ? 'Abbas me doit' : 'Je dois à Abbas'}</span><b class="adam-money ${owed >= 0 ? 'val-pos' : 'val-neg'}">${aaFr(Math.abs(owed), 2)} €</b><small>${aaFr(Math.round(Math.abs(owed) * AA_RATE), 0)} CFA à ${AA_RATE}</small></div>
+    <div class="aa-kpi"><span>${AA_OTHER_LABEL}</span><b class="adam-money ${owed >= 0 ? 'val-pos' : 'val-neg'}">${owed >= 0 ? '+' : '-'} ${aaFr(Math.abs(owed), 2)} €</b><small>${owed >= 0 ? 'à ajouter' : 'à retirer'} · ${aaFr(Math.round(Math.abs(owed) * AA_RATE), 0)} CFA à ${AA_RATE}</small></div>
     ${(() => { const ben = aaBenefit(p); return `<div class="aa-kpi aa-kpi-ben" title="(Abbas a − Solde KANGA ${aaFr(p.start, 0)}) + Adam a × ${AA_RATE}"><span>Bénéfice (chez Abbas)</span><b class="adam-money ${ben < 0 ? 'val-neg' : 'val-pos'}">${aaFr(ben, 0)} CFA</b><small>${aaFr(ben / AA_RATE, 2)} € · moitié chacun ${aaFr(Math.floor(ben / 2), 0)} CFA</small></div>`; })()}`;
   if (fix) fix.style.display = (written || !aaOtherOk(p.adam)) ? '' : 'none';
 }
-// Totaux de la note ou ligne « Abbas me doit » pas à jour (note modifiée à la main) : on corrige
+// Totaux de la note ou ligne « Opérations hors KANGA » pas à jour (note modifiée à la main) : on corrige
 async function aaFix() {
   const n = aaNote();
   if (!n) return;
@@ -3349,7 +3350,7 @@ function aaCalc() {
   pv.innerHTML = `<div class="aa-pv-title">Lignes ajoutées à la note${n ? '' : ' (créée)'}</div><pre>${esc(lines.join('\n'))}</pre>
     <div class="aa-pv-row"><span>Abbas a</span><b>${aaFr(before.abbas, 0)} → ${aaFr(r.abbas, 0)} CFA</b></div>
     <div class="aa-pv-row"><span>Adam a</span><b>${aaFr(before.adam, 2)} → ${aaFr(r.adam, 2)} €</b></div>
-    <div class="aa-pv-row"><span>${owed >= 0 ? 'Abbas me doit' : 'Je dois à Abbas'}</span><b>${aaFr(Math.abs(owed), 2)} €</b></div>
+    <div class="aa-pv-row"><span>${AA_OTHER_LABEL}</span><b>${owed >= 0 ? '+' : '-'} ${aaFr(Math.abs(owed), 2)} € (${owed >= 0 ? 'à ajouter' : 'à retirer'})</b></div>
     ${gain !== null ? `<div class="aa-pv-row"><span>Bénéfice de l'opération (à ${AA_RATE})</span><b class="${gain < 0 ? 'val-neg' : 'val-pos'}">${aaSigned(gain, 0)} CFA</b></div>` : ''}
     <div class="aa-pv-row"><span>Bénéfice total</span><b>${aaFr(aaBenefit(before), 0)} → ${aaFr(aaBenefit(aaParse(r.text)), 0)} CFA</b></div>`;
 }
