@@ -581,6 +581,17 @@
             </div>
           </div>
 
+          <div class="panel aa-card">
+            <div class="aa-head">
+              <div><h2>Opérations Adam / Abbas</h2><small>Tenues dans la note « OPÉRATIONS ADAM / ABBAS »</small></div>
+              <div class="aa-btns">
+                <button class="btn btn-ghost btn-sm" id="aaFixBtn" onclick="aaFix()" style="display:none;" title="Mettre à jour les totaux de la note et la ligne « Abbas me doit » des autres montants">Recalculer</button>
+                <button class="btn btn-primary" onclick="aaOpen()"><svg class="ic"><use href="#i-plus"/></svg><span>Opération</span></button>
+              </div>
+            </div>
+            <div class="aa-kpis" id="aaKpis"></div>
+          </div>
+
           <div class="section-head">
             <h2>Mes notes privées</h2>
             <span class="adam-notes-lock"><svg class="ic"><use href="#i-lock"/></svg>Chiffrées sur l'appareil</span>
@@ -805,6 +816,42 @@
       <div class="modal-actions">
         <button type="button" class="btn" onclick="closeAdd('euro')">Annuler</button>
         <button type="submit" class="btn btn-primary">Ajouter la transaction</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Opération Adam / Abbas (Espace Adam) -->
+<div class="modal-overlay" id="aaModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div><h2>Opération Adam / Abbas</h2><div class="modal-sub">Ajoutée à la note, totaux recalculés</div></div>
+      <button class="close-btn" onclick="aaClose()"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+    <form onsubmit="return aaSubmit(event)">
+      <div class="fgroup"><label for="aaPhrase">En une phrase (facultatif, rempli par Gemini)</label>
+        <div class="aa-phrase">
+          <textarea id="aaPhrase" rows="2" placeholder="Ex. Mahamat a donné 700 000 CFA à Abbas à 700, j'ai payé 1 000 €"></textarea>
+          <button type="button" class="btn" id="aaAiBtn" onclick="aaUnderstand()">Comprendre</button>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="fgroup aa-full"><label for="aaDir">Sens</label>
+          <select id="aaDir" onchange="aaCalc()">
+            <option value="cfa">Le client donne des CFA à Abbas · Adam paie en €</option>
+            <option value="eur">Le client donne des € à Adam · Abbas paie en CFA</option>
+            <option value="free">Autre (montants avec + ou −)</option>
+          </select>
+        </div>
+        <div class="fgroup"><label for="aaName">Nom</label><input type="text" id="aaName" maxlength="40" placeholder="Client" oninput="aaCalc()"></div>
+        <div class="fgroup"><label for="aaRate">Taux</label><input type="number" id="aaRate" step="any" inputmode="decimal" placeholder="700" oninput="aaCalc()"></div>
+        <div class="fgroup"><label for="aaCfa" id="aaCfaLbl">CFA reçus par Abbas</label><input type="number" id="aaCfa" step="any" inputmode="decimal" placeholder="0" oninput="aaEdited='cfa';aaCalc()"></div>
+        <div class="fgroup"><label for="aaEur" id="aaEurLbl">€ payés par Adam</label><input type="number" id="aaEur" step="any" inputmode="decimal" placeholder="0,00" oninput="aaEdited='eur';aaCalc()"></div>
+      </div>
+      <div class="aa-preview" id="aaPreview"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn" onclick="aaClose()">Annuler</button>
+        <button type="submit" class="btn btn-primary" id="aaSubmitBtn">Ajouter à la note</button>
       </div>
     </form>
   </div>

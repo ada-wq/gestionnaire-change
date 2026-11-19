@@ -2245,7 +2245,11 @@ async function aiAsk(key, messages) {
     .map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.text }] }));
   const system = AI_SYSTEM.replace('{WHO}', getWho() || 'l\'utilisateur') + '\n\n# DONNÉES KANGA\n' + aiDossier();
   const body = JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: history });
+  return aiPost(key, body);
+}
 
+// Envoie une requête à Gemini en essayant les modèles disponibles ; renvoie le texte de la réponse.
+async function aiPost(key, body) {
   // Modèle saturé (503/500), quota du modèle atteint (429) ou modèle retiré (404) :
   // on réessaie une fois après une courte pause, puis on passe au modèle suivant.
   const models = await aiModels(key);
@@ -2821,6 +2825,7 @@ function adamPaint() {
   adamPaintChart();
   adamPaintNotice();
   adamPaintLinks();
+  aaRender();
 }
 
 // Solde après KANGA = total de mes banques − solde Euro de KANGA ± autres montants
@@ -3006,6 +3011,7 @@ async function adamNotesSnap(s) {
   adamNotes = out.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
   adamNotesBad = bad;
   adamNotesRenderList();
+  aaRender();
   if (adamNoteCur && !adamNoteTimer) {
     const n = adamNotes.find(x => x.id === adamNoteCur);
     const t = document.getElementById('anTitle'), b = document.getElementById('anBody');
@@ -3087,6 +3093,7 @@ function adamNoteInput() {
     if (adamNoteTimer === timer) adamNoteTimer = null;
     if (adamNoteCur === n.id) document.getElementById('anStatus').textContent = ok ? 'Enregistré (chiffré)' : 'Erreur d\'enregistrement';
     adamNotesRenderList();
+    aaRender();
     adamTouch();
   }, 700);
   adamNoteTimer = timer;
@@ -3099,6 +3106,255 @@ function adamNoteDelete() {
   db.ref(ADAM_NOTES_PATH + '/' + n.id).remove().catch(() => toast('Erreur de synchronisation', 'err'));
   adamNoteClose();
   toast('Note supprimée', '', () => { adamNotes.unshift(n); adamNoteSave(n); adamNotesRenderList(); toast('Suppression annulée', 'ok'); });
+}
+
+// ── Opérations Adam / Abbas ──
+// La note privée « OPÉRATIONS ADAM / ABBAS » reste la référence : on la relit, on y ajoute les deux
+// lignes de l'opération (CFA chez Abbas, € chez Adam), on recalcule « ABBAS A » et « ADAM A », puis
+// la ligne « Abbas me doit » des autres montants suit le total d'Adam (Adam part de zéro).
+const AA_TITLE = 'OPÉRATIONS ADAM / ABBAS';
+const AA_OTHER_ID = 'adam-abbas';
+const AA_DASH = '-'.repeat(32);
+let aaEdited = '';
+
+function aaFr(n, dec) {
+  const s = Math.abs(n).toFixed(dec).split('.');
+  return (n < 0 && Math.abs(n) >= Math.pow(10, -dec) / 2 ? '-' : '') + s[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + (s[1] ? ',' + s[1] : '');
+}
+function aaEurDec(v) { const c = Math.round(Math.abs(v) * 100); return c % 100 === 0 ? 0 : c % 10 === 0 ? 1 : 2; }
+function aaSigned(v, dec) { return (v > 0 ? '+' : '') + aaFr(v, dec); }
+function aaRow(name, taux, val) { return String(name).padEnd(14) + String(taux || '').padStart(4) + String(val).padStart(14); }
+function aaNum(s) {
+  const m = String(s).replace(/[  ]/g, ' ').trim().match(/^([+\-−]?)\s?([\d ]+(?:[,.]\d+)?)$/);
+  if (!m) return null;
+  const v = parseFloat(m[2].replace(/ /g, '').replace(',', '.'));
+  return m[1] && m[1] !== '+' ? -v : v;
+}
+// Repère les deux parties de la note : « ABBAS (CFA) » et « ADAM (€) », leurs lignes, les tirets et le total
+function aaParse(text) {
+  const lines = String(text || '').split('\n');
+  const sec = { abbas: null, adam: null };
+  let cur = null;
+  lines.forEach((raw, i) => {
+    const l = raw.replace(/[  ]/g, ' ').trim();
+    const head = l.match(/^(ABBAS|ADAM)\s*\((CFA|€|EUR|EUROS?)\)/i);
+    if (head) { cur = head[1].toLowerCase(); sec[cur] = { head: i, items: [], dash: -1, total: -1 }; return; }
+    if (!cur) return;
+    const s = sec[cur];
+    if (/^-{5,}$/.test(l)) { if (s.dash < 0) s.dash = i; return; }
+    if (new RegExp('^' + cur + '\\s+A\\b', 'i').test(l)) { s.total = i; cur = null; return; }
+    if (s.dash >= 0 || !l) return;
+    const m = l.match(/^(.*?)\s+([+\-−]?\s?\d{1,3}(?: \d{3})*(?:[,.]\d+)?|[+\-−]?\s?\d+(?:[,.]\d+)?)$/);
+    if (!m) return;
+    const v = aaNum(m[2]);
+    if (v === null) return;
+    let name = m[1].trim(), taux = '';
+    const t = name.match(/^(.*?)\s+(\d{3})$/);
+    if (t) { name = t[1]; taux = t[2]; }
+    s.items.push({ line: i, name, taux, v });
+  });
+  const sum = s => (s ? s.items.reduce((a, x) => a + x.v, 0) : 0);
+  return { lines, sec, abbas: Math.round(sum(sec.abbas)), adam: Math.round(sum(sec.adam) * 100) / 100 };
+}
+// Ajoute l'opération (ou rien, op = null) et réécrit les deux totaux ; crée les parties manquantes
+function aaApply(text, op) {
+  let base = String(text || '').replace(/\s+$/, '');
+  let p = aaParse(base);
+  if (!p.sec.abbas) base += (base ? '\n\n' : '') + ['ABBAS (CFA)', aaRow('Solde KANGA', '', '0'), AA_DASH, aaRow('ABBAS A', '', '0')].join('\n');
+  if (!p.sec.adam) base += '\n\n' + ['ADAM (€)', AA_DASH, aaRow('ADAM A', '', '0')].join('\n');
+  p = aaParse(base);
+  const lines = p.lines.slice(), edits = [];
+  const res = { abbas: p.abbas, adam: p.adam };
+  ['abbas', 'adam'].forEach(key => {
+    const s = p.sec[key], isCfa = key === 'abbas';
+    const v = op ? (isCfa ? Math.round(op.cfa || 0) : Math.round((op.eur || 0) * 100) / 100) : 0;
+    const add = v ? aaRow(op.name, op.taux, aaSigned(v, isCfa ? 0 : aaEurDec(v))) : null;
+    const total = isCfa ? Math.round(res.abbas + v) : Math.round((res.adam + v) * 100) / 100;
+    res[key] = total;
+    const totalLine = aaRow(isCfa ? 'ABBAS A' : 'ADAM A', '', aaFr(total, isCfa ? 0 : 2));
+    if (s.dash >= 0) {
+      if (add) edits.push({ at: s.dash, del: 0, ins: [add] });
+      if (s.total >= 0) edits.push({ at: s.total, del: 1, ins: [totalLine] });
+      else edits.push({ at: s.dash + 1, del: 0, ins: [totalLine] });
+    } else {
+      const last = s.items.length ? s.items[s.items.length - 1].line + 1 : s.head + 1;
+      const ins = [...(add ? [add] : []), AA_DASH, totalLine];
+      edits.push(s.total >= 0 ? { at: s.total, del: 1, ins } : { at: last, del: 0, ins });
+    }
+  });
+  edits.sort((a, b) => b.at - a.at).forEach(e => lines.splice(e.at, e.del, ...e.ins));
+  return { text: lines.join('\n'), abbas: res.abbas, adam: res.adam };
+}
+function aaNote() {
+  const norm = s => String(s || '').trim().toUpperCase();
+  return adamNotes.find(n => norm(n.title) === AA_TITLE) || adamNotes.find(n => /ADAM\s*\/\s*ABBAS/.test(norm(n.title))) || null;
+}
+// Ligne des autres montants qui suit l'opération : Adam à −X € → Abbas lui doit X € (à ajouter)
+function aaOtherFor(adamTotal) {
+  const owed = adamTotal <= 0;
+  return { id: AA_OTHER_ID, label: owed ? 'Abbas me doit (avance)' : 'Je dois à Abbas', amount: Math.round(Math.abs(adamTotal) * 100) / 100, op: owed ? '+' : '-' };
+}
+function aaOtherIndex(list) {
+  const i = list.findIndex(o => o.id === AA_OTHER_ID);
+  return i >= 0 ? i : list.findIndex(o => /adam\s*\/\s*abbas|abbas me doit|je dois [àa] abbas/i.test(o.label || ''));
+}
+function aaOtherOk(adamTotal) {
+  const list = (((adamData || {}).settings || {}).others || []);
+  const i = aaOtherIndex(list), want = aaOtherFor(adamTotal);
+  if (i < 0) return !want.amount;
+  const o = list[i];
+  return o.id === want.id && Math.abs((Number(o.amount) || 0) - want.amount) < 0.005 && (o.op === '+' ? '+' : '-') === want.op;
+}
+async function aaSyncOther(adamTotal) {
+  if (!adamData || aaOtherOk(adamTotal)) return true;
+  const list = (((adamData.settings || {}).others) || []).slice();
+  const item = { ...aaOtherFor(adamTotal), at: new Date().toISOString() };
+  const i = aaOtherIndex(list);
+  if (i >= 0) list[i] = item; else list.push(item);
+  return adamSaveOthers(list, `« ${item.label} » : ${fmtEuro(item.amount)}`);
+}
+
+function aaRender() {
+  const box = document.getElementById('aaKpis');
+  if (!box) return;
+  const n = aaNote();
+  const fix = document.getElementById('aaFixBtn');
+  if (!n) {
+    box.innerHTML = `<p class="hint">Pas encore de note « ${AA_TITLE} » : elle sera créée à la première opération.</p>`;
+    if (fix) fix.style.display = 'none';
+    return;
+  }
+  const p = aaParse(n.content);
+  const written = aaApply(n.content, null).text !== n.content;
+  const owed = -p.adam;
+  box.innerHTML = `
+    <div class="aa-kpi"><span>Abbas a</span><b class="adam-money">${aaFr(p.abbas, 0)} CFA</b><small>${p.sec.abbas ? p.sec.abbas.items.length : 0} lignes</small></div>
+    <div class="aa-kpi"><span>Adam a</span><b class="adam-money ${p.adam < 0 ? 'val-neg' : ''}">${aaFr(p.adam, 2)} €</b><small>${p.sec.adam ? p.sec.adam.items.length : 0} lignes</small></div>
+    <div class="aa-kpi"><span>${owed >= 0 ? 'Abbas me doit' : 'Je dois à Abbas'}</span><b class="adam-money ${owed >= 0 ? 'val-pos' : 'val-neg'}">${aaFr(Math.abs(owed), 2)} €</b><small>${Math.round(Math.abs(owed) * 665).toLocaleString('fr-FR')} CFA à 665</small></div>`;
+  if (fix) fix.style.display = (written || !aaOtherOk(p.adam)) ? '' : 'none';
+}
+// Totaux de la note ou ligne « Abbas me doit » pas à jour (note modifiée à la main) : on corrige
+async function aaFix() {
+  const n = aaNote();
+  if (!n) return;
+  const r = aaApply(n.content, null);
+  if (r.text !== n.content) await aaWriteNote(n, r.text);
+  if (await aaSyncOther(r.adam)) toast('Totaux recalculés', 'ok');
+  aaRender();
+}
+async function aaWriteNote(n, text) {
+  if (adamNoteCur === n.id) { clearTimeout(adamNoteTimer); adamNoteTimer = null; }
+  n.content = text; n.updatedAt = new Date().toISOString();
+  if (adamNoteCur === n.id) { document.getElementById('anBody').value = text; adamNoteStatus(n); }
+  const ok = await adamNoteSave(n);
+  adamNotesRenderList();
+  return ok;
+}
+
+function aaOpen() {
+  if (!adamNotesOn) { toast('Notes pas encore chargées', 'err'); return; }
+  ['aaPhrase', 'aaName', 'aaRate', 'aaCfa', 'aaEur'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('aaDir').value = 'cfa';
+  aaEdited = '';
+  aaCalc();
+  document.getElementById('aaModal').classList.add('open');
+  setTimeout(() => document.getElementById('aaPhrase').focus(), 80);
+}
+function aaClose() { closeModal('aaModal'); }
+// Montants signés selon le sens : CFA reçus par Abbas = € payés par Adam, et inversement
+function aaValues() {
+  const dir = document.getElementById('aaDir').value;
+  const name = document.getElementById('aaName').value.trim().replace(/\s+/g, ' ');
+  const taux = parseFloat(document.getElementById('aaRate').value) || 0;
+  let cfa = parseFloat(document.getElementById('aaCfa').value) || 0;
+  let eur = parseFloat(document.getElementById('aaEur').value) || 0;
+  if (dir === 'cfa') { cfa = Math.abs(cfa); eur = -Math.abs(eur); }
+  else if (dir === 'eur') { cfa = -Math.abs(cfa); eur = Math.abs(eur); }
+  return { dir, name, taux: taux ? String(Math.round(taux)) : '', cfa: Math.round(cfa), eur: Math.round(eur * 100) / 100 };
+}
+function aaCalc() {
+  const dir = document.getElementById('aaDir').value;
+  const free = dir === 'free';
+  ['aaCfa', 'aaEur'].forEach(id => { document.getElementById(id).min = free ? '' : '0'; });
+  document.getElementById('aaCfaLbl').textContent = free ? 'CFA Abbas (+ reçus, − payés)' : dir === 'cfa' ? 'CFA reçus par Abbas' : 'CFA payés par Abbas';
+  document.getElementById('aaEurLbl').textContent = free ? '€ Adam (+ reçus, − payés)' : dir === 'cfa' ? '€ payés par Adam' : '€ reçus par Adam';
+  const taux = parseFloat(document.getElementById('aaRate').value) || 0;
+  if (!free && taux > 0) {
+    const c = document.getElementById('aaCfa'), e = document.getElementById('aaEur');
+    if (aaEdited === 'cfa' && c.value !== '') e.value = Math.round(Math.abs(parseFloat(c.value)) / taux * 100) / 100;
+    else if (aaEdited === 'eur' && e.value !== '') c.value = Math.round(Math.abs(parseFloat(e.value)) * taux);
+  }
+  const v = aaValues(), pv = document.getElementById('aaPreview'), btn = document.getElementById('aaSubmitBtn');
+  if (!v.name || (!v.cfa && !v.eur)) { pv.innerHTML = '<p class="hint">Indiquez le nom et au moins un montant.</p>'; btn.disabled = true; return; }
+  btn.disabled = false;
+  const n = aaNote();
+  const before = n ? aaParse(n.content) : { abbas: 0, adam: 0 };
+  const r = aaApply(n ? n.content : '', v);
+  const owed = -r.adam;
+  const lines = [];
+  if (v.cfa) lines.push('ABBAS ' + aaRow(v.name, v.taux, aaSigned(v.cfa, 0)));
+  if (v.eur) lines.push('ADAM  ' + aaRow(v.name, v.taux, aaSigned(v.eur, aaEurDec(v.eur))));
+  const gain = v.cfa && v.eur ? Math.round(v.cfa + v.eur * 665) : null;
+  pv.innerHTML = `<div class="aa-pv-title">Lignes ajoutées à la note${n ? '' : ' (créée)'}</div><pre>${esc(lines.join('\n'))}</pre>
+    <div class="aa-pv-row"><span>Abbas a</span><b>${aaFr(before.abbas, 0)} → ${aaFr(r.abbas, 0)} CFA</b></div>
+    <div class="aa-pv-row"><span>Adam a</span><b>${aaFr(before.adam, 2)} → ${aaFr(r.adam, 2)} €</b></div>
+    <div class="aa-pv-row"><span>${owed >= 0 ? 'Abbas me doit' : 'Je dois à Abbas'}</span><b>${aaFr(Math.abs(owed), 2)} €</b></div>
+    ${gain !== null ? `<div class="aa-pv-row"><span>Bénéfice de l'opération (à 665)</span><b class="${gain < 0 ? 'val-neg' : 'val-pos'}">${aaSigned(gain, 0)} CFA</b></div>` : ''}`;
+}
+async function aaSubmit(e) {
+  e.preventDefault();
+  const v = aaValues();
+  if (!v.name || (!v.cfa && !v.eur)) return false;
+  const btn = document.getElementById('aaSubmitBtn');
+  btn.disabled = true;
+  try {
+    let n = aaNote();
+    if (!n) {
+      const now = new Date().toISOString();
+      n = { id: genId(), title: AA_TITLE, content: '', createdAt: now, updatedAt: now };
+      adamNotes.unshift(n);
+    }
+    const r = aaApply(n.content, v);
+    if (!(await aaWriteNote(n, r.text))) return false;
+    aaClose();
+    toast(`« ${v.name} » ajouté à la note`, 'ok');
+    await aaSyncOther(r.adam);
+    aaRender();
+  } finally { btn.disabled = false; }
+  return false;
+}
+// Une phrase → les champs du formulaire, avec Gemini (l'utilisateur vérifie avant d'ajouter)
+async function aaUnderstand() {
+  const phrase = document.getElementById('aaPhrase').value.trim();
+  if (!phrase) { toast('Écrivez d\'abord l\'opération en une phrase', 'err'); return; }
+  const key = aiKey();
+  if (!key) { toast('Ajoutez d\'abord votre clé Gemini dans l\'Assistant IA', 'err'); return; }
+  const btn = document.getElementById('aaAiBtn');
+  btn.disabled = true; btn.textContent = 'Analyse…';
+  const system = `Tu lis une opération de change entre Adam (en France, il paie ou reçoit des euros) et Abbas (au Tchad, il paie ou reçoit des francs CFA).
+Réponds uniquement en JSON : {"nom": string, "taux": number|null, "sens": "cfa"|"eur"|"autre", "cfa": number|null, "eur": number|null}
+- "cfa" : le client donne des CFA à Abbas et Adam paie des euros.
+- "eur" : le client donne des euros à Adam et Abbas paie des CFA.
+- "autre" : tout le reste (par exemple un bénéfice reçu en CFA seulement) ; alors cfa et eur sont signés (+ reçu, − payé), 0 si absent.
+- Pour "cfa" et "eur", montants positifs. Si un seul montant est donné avec le taux, calcule l'autre (CFA = euros × taux), CFA arrondis à l'unité, euros au centime.
+- "nom" : le nom du client ou de l'opération, sans Adam ni Abbas.
+- Les montants peuvent s'écrire « 700 000 », « 700.000 », « 1000,50 », « 700k » (= 700 000), « 1,2 million » (= 1 200 000).`;
+  try {
+    const body = JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: phrase }] }],
+      generationConfig: { responseMimeType: 'application/json', temperature: 0 } });
+    const txt = await aiPost(key, body);
+    const o = JSON.parse(txt.replace(/^```(?:json)?\s*|\s*```$/g, ''));
+    const dir = o.sens === 'eur' ? 'eur' : o.sens === 'autre' ? 'free' : 'cfa';
+    document.getElementById('aaDir').value = dir;
+    document.getElementById('aaName').value = String(o.nom || '').slice(0, 40);
+    document.getElementById('aaRate').value = Number(o.taux) > 0 ? Number(o.taux) : '';
+    document.getElementById('aaCfa').value = Number(o.cfa) ? (dir === 'free' ? Number(o.cfa) : Math.abs(Number(o.cfa))) : '';
+    document.getElementById('aaEur').value = Number(o.eur) ? (dir === 'free' ? Number(o.eur) : Math.abs(Number(o.eur))) : '';
+    aaEdited = document.getElementById('aaCfa').value === '' ? 'eur' : document.getElementById('aaEur').value === '' ? 'cfa' : '';
+    aaCalc();
+    toast('Vérifiez les champs puis ajoutez', 'ok');
+  } catch (err) { toast(err instanceof SyntaxError ? 'Réponse de Gemini illisible, remplissez les champs' : err.message, 'err'); }
+  finally { btn.disabled = false; btn.textContent = 'Comprendre'; }
 }
 
 // ── Messages : liaison en cours d'enregistrement, accès bientôt expirés ──
