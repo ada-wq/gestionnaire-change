@@ -3194,8 +3194,12 @@ function aaParse(text) {
     s.items.push({ line: i, name, taux, v });
   });
   const sum = s => (s ? s.items.reduce((a, x) => a + x.v, 0) : 0);
-  return { lines, sec, abbas: Math.round(sum(sec.abbas)), adam: Math.round(sum(sec.adam) * 100) / 100 };
+  const startItem = sec.abbas && sec.abbas.items.find(x => /solde\s*kanga|d[ée]part/i.test(x.name));
+  return { lines, sec, abbas: Math.round(sum(sec.abbas)), adam: Math.round(sum(sec.adam) * 100) / 100, start: startItem ? startItem.v : 0 };
 }
+// Bénéfice (en CFA) = ce qu'Abbas a gagné depuis le départ KANGA − les euros avancés par Adam (× 665)
+const AA_RATE = 665;
+function aaBenefit(p) { return Math.round(p.abbas - p.start + p.adam * AA_RATE); }
 // Ajoute l'opération (ou rien, op = null) et réécrit les deux totaux ; crée les parties manquantes
 function aaApply(text, op) {
   let base = String(text || '').replace(/\s+$/, '');
@@ -3270,7 +3274,8 @@ function aaRender() {
   box.innerHTML = `
     <div class="aa-kpi"><span>Abbas a</span><b class="adam-money">${aaFr(p.abbas, 0)} CFA</b><small>${p.sec.abbas ? p.sec.abbas.items.length : 0} lignes</small></div>
     <div class="aa-kpi"><span>Adam a</span><b class="adam-money ${p.adam < 0 ? 'val-neg' : ''}">${aaFr(p.adam, 2)} €</b><small>${p.sec.adam ? p.sec.adam.items.length : 0} lignes</small></div>
-    <div class="aa-kpi"><span>${owed >= 0 ? 'Abbas me doit' : 'Je dois à Abbas'}</span><b class="adam-money ${owed >= 0 ? 'val-pos' : 'val-neg'}">${aaFr(Math.abs(owed), 2)} €</b><small>${Math.round(Math.abs(owed) * 665).toLocaleString('fr-FR')} CFA à 665</small></div>`;
+    <div class="aa-kpi"><span>${owed >= 0 ? 'Abbas me doit' : 'Je dois à Abbas'}</span><b class="adam-money ${owed >= 0 ? 'val-pos' : 'val-neg'}">${aaFr(Math.abs(owed), 2)} €</b><small>${aaFr(Math.round(Math.abs(owed) * AA_RATE), 0)} CFA à ${AA_RATE}</small></div>
+    ${(() => { const ben = aaBenefit(p); return `<div class="aa-kpi aa-kpi-ben" title="(Abbas a − Solde KANGA ${aaFr(p.start, 0)}) + Adam a × ${AA_RATE}"><span>Bénéfice (chez Abbas)</span><b class="adam-money ${ben < 0 ? 'val-neg' : 'val-pos'}">${aaFr(ben, 0)} CFA</b><small>${aaFr(ben / AA_RATE, 2)} € · moitié chacun ${aaFr(Math.floor(ben / 2), 0)} CFA</small></div>`; })()}`;
   if (fix) fix.style.display = (written || !aaOtherOk(p.adam)) ? '' : 'none';
 }
 // Totaux de la note ou ligne « Abbas me doit » pas à jour (note modifiée à la main) : on corrige
@@ -3329,18 +3334,19 @@ function aaCalc() {
   if (!v.name || (!v.cfa && !v.eur)) { pv.innerHTML = '<p class="hint">Indiquez le nom et au moins un montant.</p>'; btn.disabled = true; return; }
   btn.disabled = false;
   const n = aaNote();
-  const before = n ? aaParse(n.content) : { abbas: 0, adam: 0 };
+  const before = n ? aaParse(n.content) : { abbas: 0, adam: 0, start: 0 };
   const r = aaApply(n ? n.content : '', v);
   const owed = -r.adam;
   const lines = [];
   if (v.cfa) lines.push('ABBAS ' + aaRow(v.name, v.taux, aaSigned(v.cfa, 0)));
   if (v.eur) lines.push('ADAM  ' + aaRow(v.name, v.taux, aaSigned(v.eur, aaEurDec(v.eur))));
-  const gain = v.cfa && v.eur ? Math.round(v.cfa + v.eur * 665) : null;
+  const gain = v.cfa && v.eur ? Math.round(v.cfa + v.eur * AA_RATE) : null;
   pv.innerHTML = `<div class="aa-pv-title">Lignes ajoutées à la note${n ? '' : ' (créée)'}</div><pre>${esc(lines.join('\n'))}</pre>
     <div class="aa-pv-row"><span>Abbas a</span><b>${aaFr(before.abbas, 0)} → ${aaFr(r.abbas, 0)} CFA</b></div>
     <div class="aa-pv-row"><span>Adam a</span><b>${aaFr(before.adam, 2)} → ${aaFr(r.adam, 2)} €</b></div>
     <div class="aa-pv-row"><span>${owed >= 0 ? 'Abbas me doit' : 'Je dois à Abbas'}</span><b>${aaFr(Math.abs(owed), 2)} €</b></div>
-    ${gain !== null ? `<div class="aa-pv-row"><span>Bénéfice de l'opération (à 665)</span><b class="${gain < 0 ? 'val-neg' : 'val-pos'}">${aaSigned(gain, 0)} CFA</b></div>` : ''}`;
+    ${gain !== null ? `<div class="aa-pv-row"><span>Bénéfice de l'opération (à ${AA_RATE})</span><b class="${gain < 0 ? 'val-neg' : 'val-pos'}">${aaSigned(gain, 0)} CFA</b></div>` : ''}
+    <div class="aa-pv-row"><span>Bénéfice total</span><b>${aaFr(aaBenefit(before), 0)} → ${aaFr(aaBenefit(aaParse(r.text)), 0)} CFA</b></div>`;
 }
 async function aaSubmit(e) {
   e.preventDefault();
